@@ -1,0 +1,172 @@
+{
+    "symptom_disease_weights": {
+        "Community-Acquired Pneumonia": {
+            "fever": 2,
+            "productive_cough": 2,
+            "dyspnea": 1,
+            "pleuritic_chest_pain": 1,
+            "crackles": 2,
+            "age_over_65": 1,
+            "leukocytosis": 2,
+            "infiltrate_on_xray": 3,
+            "tachypnea": 1,
+            "hypoxia": 2
+        },
+        "Pulmonary Embolism": {
+            "dyspnea": 2,
+            "pleuritic_chest_pain": 2,
+            "tachycardia": 2,
+            "leg_swelling": 2,
+            "hemoptysis": 1,
+            "sudden_onset": 2,
+            "recent_surgery": 2,
+            "immobilization": 1,
+            "fever": -1,
+            "productive_cough": -2
+        },
+        "Heart Failure": {
+            "dyspnea": 2,
+            "orthopnea": 2,
+            "paroxysmal_nocturnal_dyspnea": 2,
+            "leg_edema": 2,
+            "crackles": 1,
+            "elevated_jvp": 2,
+            "s3_gallop": 2,
+            "weight_gain": 1
+        },
+        "Acute Bronchitis": {
+            "cough": 2,
+            "productive_cough": 1,
+            "fever": 1,
+            "dyspnea": 1,
+            "wheezing": 1,
+            "recent_uri": 2,
+            "clear_lungs": 1
+        },
+        "GERD": {
+            "heartburn": 3,
+            "regurgitation": 2,
+            "chest_burning": 2,
+            "worse_after_meals": 2,
+            "worse_lying_down": 2,
+            "dysphagia": 1,
+            "chronic_cough": 1
+        },
+        "Myocardial Infarction": {
+            "chest_pain": 2,
+            "substernal_pain": 2,
+            "radiation_to_arm": 2,
+            "diaphoresis": 2,
+            "nausea": 1,
+            "dyspnea": 1,
+            "cardiac_risk_factors": 2,
+            "st_elevation": 3,
+            "troponin_elevation": 3
+        }
+    },
+    "negative_features": {
+        "Pulmonary Embolism": {
+            "features": [
+                "productive_cough",
+                "fever",
+                "gradual_onset",
+                "response_to_antibiotics"
+            ],
+            "reasoning": "Productive cough and fever more consistent with infectious process"
+        },
+        "Community-Acquired Pneumonia": {
+            "features": [
+                "sudden_onset",
+                "no_fever",
+                "chronic_symptoms"
+            ],
+            "reasoning": "Sudden onset without fever argues against infectious pneumonia"
+        },
+        "Heart Failure": {
+            "features": [
+                "sudden_onset",
+                "no_orthopnea",
+                "no_edema"
+            ],
+            "reasoning": "Absence of volume overload symptoms reduces likelihood"
+        },
+        "GERD": {
+            "features": [
+                "sudden_onset",
+                "radiation_to_arm",
+                "diaphoresis"
+            ],
+            "reasoning": "Acute onset with radiation suggests cardiac rather than GI etiology"
+        }
+    },
+    "likelihood_thresholds": {
+        "very_likely": 7,
+        "likely": 5,
+        "possible": 3,
+        "unlikely": 1,
+        "very_unlikely": 0
+    },
+    "evidence_keywords": {
+        "diagnostic_criteria": [
+            "diagnostic criteria",
+            "diagnosis is based on",
+            "diagnostic approach",
+            "diagnosis requires",
+            "criteria for diagnosis",
+            "diagnosis is made",
+            "sensitivity",
+            "specificity"
+        ],
+        "typical_symptoms": [
+            "classic presentation",
+            "typical features",
+            "commonly presents with",
+            "hallmark",
+            "characteristic",
+            "most common symptom",
+            "frequently associated"
+        ],
+        "exclusion_features": [
+            "argues against",
+            "unlikely if",
+            "absence of",
+            "rules out",
+            "excludes",
+            "inconsistent with"
+        ],
+        "management": [
+            "treatment",
+            "management",
+            "therapy",
+            "medication",
+            "intervention"
+        ]
+    },
+    "critical_variables": {
+        "vitals": [
+            "blood_pressure",
+            "heart_rate",
+            "respiratory_rate",
+            "temperature",
+            "oxygen_saturation"
+        ],
+        "labs": [
+            "complete_blood_count",
+            "metabolic_panel",
+            "troponin",
+            "bnp",
+            "d_dimer"
+        ],
+        "imaging": [
+            "chest_xray",
+            "ct_scan",
+            "ecg"
+        ],
+        "physical_exam": [
+            "lung_sounds",
+            "heart_sounds",
+            "edema",
+            "jvp"
+        ]
+    }
+}

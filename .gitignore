@@ -1,11 +1,114 @@
-# Python-generated files
+# ================================
+# PYTHON & ENVIRONMENT
+# ================================
+# Python cache
 __pycache__/
 *.py[oc]
+*.pyc
+*.pyo
+
+# Build artifacts
 build/
 dist/
 wheels/
 *.egg-info
+*.egg
 
 # Virtual environments
-.venv
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables (NEVER commit API keys!)
 .env
+.env.local
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ================================
+# DATASETS & DATA FILES
+# ================================
+# Large CSV dataset (commit compressed, ignore uncompressed)
+Disease and symptoms dataset.csv
+# Disease and symptoms dataset.csv.gz <- KEEP THIS (1.5MB compressed)
+
+# datasets folder
+datasets/
+
+# data folder (raw data)
+data/
+!data/.gitkeep
+
+# ================================
+# GENERATED OUTPUT FILES
+# ================================
+# Output files from test runs
+OUTPUT_*.json
+OUTPUT_*.txt
+OUTPUT_*.md
+output_*.json
+output_*.txt
+
+# Result files
+results/
+outputs/
+
+# Logs
+*.log
+logs/
+
+# ================================
+# MARKDOWN FILES (ALL)
+# ================================
+# Ignore all markdown documentation files
+*.md
+
+# ================================
+# CHUNKED DATA (9627+ files!)
+# ================================
+# StatPearls chunks (too many files for git)
+chunk/
+chunks/
+
+# ================================
+# TEMPORARY & WORKING FILES
+# ================================
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# ================================
+# VECTOR DATABASES
+# ================================
+# Qdrant storage (regenerate on deployment)
+qdrant_storage/
+qdrant_data/
+*.qdrant
+
+# ================================
+# OS & SYSTEM FILES
+# ================================
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# ================================
+# NOTES FOR DEPLOYMENT
+# ================================
+# This .gitignore is configured for Railway.io deployment:
+# 1. CSV is compressed (1.5MB) and committed as .csv.gz
+# 2. Railway will decompress on startup (see scripts/decompress_csv.py)
+# 3. chunk/ folder is ignored (will be regenerated if needed)
+# 4. All API keys are in .env (NEVER committed)
+# 5. All .md documentation files are ignored
