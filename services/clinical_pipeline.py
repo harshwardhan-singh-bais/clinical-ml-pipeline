@@ -496,6 +496,30 @@ OUTPUT (JSON only, no markdown):
             symptoms_as_strings = extract_symptom_names(symptoms_as_dicts)  # For legacy services
             normalized_data["symptom_names"] = symptoms_as_strings  # Add convenience field
             
+            # 🔥 CONSOLE LOG: DETAILED SYMPTOMS EXTRACTED
+            logger.info("="*80)
+            logger.info("📋 EXTRACTED SYMPTOMS (Detailed)")
+            logger.info("="*80)
+            for idx, symptom in enumerate(symptoms_as_dicts, 1):
+                if isinstance(symptom, dict):
+                    logger.info(f"\n  Symptom #{idx}: {symptom.get('symptom', 'Unknown')}")
+                    if symptom.get('quality'):
+                        logger.info(f"    ├─ Quality: {symptom.get('quality')}")
+                    if symptom.get('location'):
+                        logger.info(f"    ├─ Location: {symptom.get('location')}")
+                    if symptom.get('severity'):
+                        logger.info(f"    ├─ Severity: {symptom.get('severity')}")
+                    if symptom.get('duration'):
+                        logger.info(f"    ├─ Duration: {symptom.get('duration')}")
+                    if symptom.get('timing'):
+                        logger.info(f"    └─ Timing: {symptom.get('timing')}")
+                else:
+                    logger.info(f"  Symptom #{idx}: {symptom}")
+            
+            logger.info(f"\n📝 Total Symptoms: {len(symptoms_as_strings)}")
+            logger.info(f"   Simple list: {symptoms_as_strings}")
+            logger.info("="*80)
+            
             
             
             # ===== HYBRID DIAGNOSIS GENERATION (CSV + DDXPlus + MEDCASE) =====
@@ -517,6 +541,27 @@ OUTPUT (JSON only, no markdown):
                 )
                 if csv_diagnoses:
                     logger.info(f"📊 CSV: {len(csv_diagnoses)} candidates found")
+                    
+                    # 🔥 CONSOLE LOG: DISEASE-SYMPTOM MAPPING
+                    logger.info("="*80)
+                    logger.info("🗺️  DISEASE-SYMPTOM MAPPING (CSV Service)")
+                    logger.info("="*80)
+                    for idx, diag in enumerate(csv_diagnoses[:5], 1):  # Show top 5
+                        logger.info(f"\n  #{idx} {diag.get('diagnosis', 'Unknown')}")
+                        logger.info(f"     Match Score: {diag.get('match_score', 0):.3f}")
+                        
+                        # Show which symptoms matched
+                        matched = diag.get('matched_symptoms', [])
+                        if matched:
+                            logger.info(f"     Matched Symptoms ({len(matched)}):")
+                            for sym in matched[:5]:  # Show top 5 matched
+                                logger.info(f"       ✓ {sym}")
+                        
+                        # Show pattern matches if available
+                        if diag.get('pattern_name'):
+                            logger.info(f"     Pattern: {diag.get('pattern_name')}")
+                    
+                    logger.info("="*80)
                 else:
                     logger.info("⚠️  CSV: 0 diagnoses")
             except Exception as e:
