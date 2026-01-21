@@ -21,7 +21,9 @@ export default function HealthDashboard() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisData, setAnalysisData] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<any>(null);
   const [inputText, setInputText] = useState('');
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   // The specific glass style you requested
   const glassStyle = "bg-[rgba(255,255,255,0.18)] rounded-[16px] shadow-[0_4px_30px_rgba(0,0,0,0.1)] backdrop-blur-[0.9px] border border-[rgba(255,255,255,0.76)]";
@@ -30,15 +32,63 @@ export default function HealthDashboard() {
   const handleAnalyze = async (text: string) => {
     setIsAnalyzing(true);
     setError(null);
+    setErrorDetails(null);
+    setShowErrorModal(false);
+    setInputText(text); // Store the input text
 
     try {
       // Call real API
       const result = await api.analyzeText(text);
+
+      console.log('✅ API Response:', result);
+      console.log('📊 Diagnoses:', result?.differential_diagnoses);
+      console.log('📝 Summary:', result?.clinical_summary || result?.summary);
+
+      // Add original_text to response if not present
+      if (!result.original_text && !result.content) {
+        result.original_text = text;
+      }
+
       setAnalysisData(result);
       setHasAnalyzed(true);
     } catch (err: any) {
-      console.error('Analysis error:', err);
-      setError(err.message || 'Failed to analyze clinical note. Please try again.');
+      // Parse validation error from backend (silently, no console spam)
+      let errorMessage = 'Failed to analyze clinical note. Please try again.';
+      let details = null;
+
+      if (err.message) {
+        try {
+          // The error message is now the stringified detail object
+          const errorData = JSON.parse(err.message);
+
+          // Check if it's already the detail object (no nesting)
+          if (errorData.error && errorData.error_type) {
+            errorMessage = errorData.error;
+            details = errorData;
+          }
+          // Legacy: check if it has detail property
+          else if (errorData.detail) {
+            if (typeof errorData.detail === 'object') {
+              errorMessage = errorData.detail.error || errorMessage;
+              details = errorData.detail;
+            } else {
+              errorMessage = errorData.detail;
+            }
+          }
+        } catch {
+          // Not JSON, use message as-is
+          errorMessage = err.message;
+        }
+      }
+
+      // Only log unexpected errors (not validation errors)
+      if (!details) {
+        console.error('❌ Analysis error:', err);
+      }
+
+      setError(errorMessage);
+      setErrorDetails(details);
+      setShowErrorModal(true);
     } finally {
       setIsAnalyzing(false);
     }
@@ -49,6 +99,8 @@ export default function HealthDashboard() {
     setHasAnalyzed(false);
     setAnalysisData(null);
     setError(null);
+    setErrorDetails(null);
+    setShowErrorModal(false);
   };
 
   return (
@@ -59,7 +111,6 @@ export default function HealthDashboard() {
 
       {/* --- MAIN CONTENT --- */}
       <main className="flex-1 overflow-y-auto px-10 py-8">
-
         <div className="mx-auto max-w-[1400px] h-full flex flex-col">
 
           {/* Header */}
@@ -68,7 +119,6 @@ export default function HealthDashboard() {
               <h1 className="text-3xl font-semibold text-[#2d3436]">Good Morning, Ayoub!</h1>
               <p className="mt-1 text-sm text-[#636e72]">Monday, January 05, 2026 • Updated 10m ago</p>
             </div>
-
             <div className="flex items-center gap-5">
               <div className={`flex h-[50px] w-[350px] items-center px-5 transition-all focus-within:bg-white/60 ${glassStyle}`}>
                 <i className="fa-solid fa-magnifying-glass text-[#636e72] text-base"></i>
@@ -97,7 +147,7 @@ export default function HealthDashboard() {
                 <button onClick={handleReset} className="self-start text-sm font-semibold text-slate-500 hover:text-blue-600 flex items-center gap-2 mb-2 transition-colors">
                   <i className="fa-solid fa-arrow-left"></i> Back to Input
                 </button>
-                <OutputSection isVisible={true} />
+                <OutputSection isVisible={true} data={analysisData} />
               </div>
             ) : (
               // --- VIEW 1: INPUT MODE ---
@@ -105,7 +155,14 @@ export default function HealthDashboard() {
 
                 {/* LEFT: Input Hub */}
                 <div className="lg:col-span-8 flex flex-col">
-                  <InputHub onAnalyze={handleAnalyze} isAnalyzing={isAnalyzing} />
+                  <InputHub
+                    onAnalyze={handleAnalyze}
+                    isAnalyzing={isAnalyzing}
+                    onUploadComplete={(data) => {
+                      setAnalysisData(data);
+                      setHasAnalyzed(true);
+                    }}
+                  />
                 </div>
 
                 {/* RIGHT: System Vitals */}
@@ -122,7 +179,14 @@ export default function HealthDashboard() {
                     <div className="flex items-end justify-between">
                       <div className="relative mr-4 h-12 flex-1 opacity-80">
                         <svg viewBox="0 0 100 40" className="h-full w-full overflow-visible">
-                          <path d="M0,35 Q30,35 50,30 T100,10" fill="none" stroke="#2d3436" strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />
+                          <path
+                            d="M0,35 Q30,35 50,30 T100,10"
+                            fill="none"
+                            stroke="#2d3436"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            opacity="0.6"
+                          />
                         </svg>
                       </div>
                       <div className="flex min-w-[90px] flex-col items-center justify-center rounded-[20px] bg-white px-4 py-2 shadow-sm">
@@ -143,7 +207,13 @@ export default function HealthDashboard() {
                     <div className="flex items-end justify-between">
                       <div className="relative mr-4 h-12 flex-1 opacity-80">
                         <svg viewBox="0 0 100 40" className="h-full w-full overflow-visible">
-                          <path d="M0,20 L15,20 L25,5 L35,35 L45,10 L55,20 L100,20" fill="none" stroke="#0984e3" strokeWidth="2.5" strokeLinecap="round" />
+                          <path
+                            d="M0,20 L15,20 L25,5 L35,35 L45,10 L55,20 L100,20"
+                            fill="none"
+                            stroke="#0984e3"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                          />
                         </svg>
                       </div>
                       <div className="flex min-w-[90px] flex-col items-center justify-center rounded-[20px] bg-white px-4 py-2 shadow-sm">
@@ -164,7 +234,13 @@ export default function HealthDashboard() {
                     <div className="flex items-end justify-between">
                       <div className="relative mr-4 h-12 flex-1 opacity-80">
                         <svg viewBox="0 0 100 40" className="h-full w-full overflow-visible">
-                          <path d="M0,25 Q15,10 30,25 T60,25 T100,15" fill="none" stroke="#6c5ce7" strokeWidth="2.5" strokeLinecap="round" />
+                          <path
+                            d="M0,25 Q15,10 30,25 T60,25 T100,15"
+                            fill="none"
+                            stroke="#6c5ce7"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                          />
                         </svg>
                       </div>
                       <div className="flex min-w-[90px] flex-col items-center justify-center rounded-[20px] bg-white px-4 py-2 shadow-sm">
@@ -188,7 +264,6 @@ export default function HealthDashboard() {
                 <div className="grid flex-1 grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
                   {/* Left Subgrid */}
                   <div className="grid grid-cols-2 grid-rows-[auto_auto] gap-6">
-
                     {/* Weight */}
                     <div className={`flex items-center justify-between p-5 ${glassStyle}`}>
                       <div>
@@ -246,7 +321,6 @@ export default function HealthDashboard() {
                   <div className={`flex flex-col items-center justify-center text-center p-6 ${glassStyle}`}>
                     <h3 className="self-start text-lg font-bold text-[#2d3436]">Activity</h3>
                     <span className="self-start text-sm font-medium text-[#636e72]">654 Steps left</span>
-
                     <div className="relative mt-6 h-48 w-48">
                       <svg className="h-full w-full -rotate-90 transform">
                         <circle cx="96" cy="96" r="80" fill="none" stroke="#dfe6e9" strokeWidth="16" />
@@ -278,9 +352,126 @@ export default function HealthDashboard() {
           {/* Footer (Outside max-w container to stretch full width) */}
           <Footer />
         </div>
-
-
       </main>
+
+      {/* ===  ERROR MODAL === */}
+      {showErrorModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="relative w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300">
+
+            {/* Header */}
+            <div className={`rounded-t-2xl p-6 text-white ${errorDetails?.error_type === 'quota_exhausted' || errorDetails?.error_type === 'api_key_error'
+              ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
+              : 'bg-gradient-to-r from-red-500 to-orange-500'
+              }`}>
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                  {errorDetails?.error_type === 'quota_exhausted' ? (
+                    <i className="fa-solid fa-clock text-2xl"></i>
+                  ) : errorDetails?.error_type === 'api_key_error' ? (
+                    <i className="fa-solid fa-key text-2xl"></i>
+                  ) : (
+                    <i className="fa-solid fa-exclamation-triangle text-2xl"></i>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold">
+                    {errorDetails?.error_type === 'quota_exhausted' && 'Service Limit Reached'}
+                    {errorDetails?.error_type === 'api_key_error' && 'Service Unavailable'}
+                    {errorDetails?.error_type === 'server_error' && 'Server Error'}
+                    {errorDetails?.error_type === 'gibberish' && 'Invalid Input'}
+                    {errorDetails?.error_type === 'not_medical' && 'Invalid Input'}
+                    {errorDetails?.error_type === 'too_short' && 'Invalid Input'}
+                    {errorDetails?.error_type === 'empty_input' && 'Invalid Input'}
+                    {!errorDetails?.error_type && 'Error'}
+                  </h3>
+                  <p className="text-sm text-white/80 mt-1">
+                    {errorDetails?.error_type === 'quota_exhausted' && 'AI Analysis Quota Exhausted'}
+                    {errorDetails?.error_type === 'api_key_error' && 'Authentication Failed'}
+                    {errorDetails?.error_type === 'server_error' && 'Unexpected Error'}
+                    {errorDetails?.error_type === 'gibberish' && 'Gibberish Detected'}
+                    {errorDetails?.error_type === 'not_medical' && 'Not a Medical Note'}
+                    {errorDetails?.error_type === 'too_short' && 'Input Too Short'}
+                    {errorDetails?.error_type === 'empty_input' && 'Empty Input'}
+                    {!errorDetails?.error_type && 'Validation Error'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-6">
+              <div className="mb-4">
+                <h4 className="font-semibold text-slate-800 mb-2">Error Message:</h4>
+                <p className="text-slate-600 text-sm leading-relaxed bg-red-50 border border-red-100 rounded-lg p-3">
+                  {error}
+                </p>
+              </div>
+
+              {errorDetails?.suggestion && (
+                <div className="mb-4">
+                  <h4 className="font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                    <i className="fa-solid fa-lightbulb text-yellow-500"></i>
+                    Suggestion:
+                  </h4>
+                  <p className="text-slate-600 text-sm leading-relaxed bg-yellow-50 border border-yellow-100 rounded-lg p-3">
+                    {errorDetails.suggestion}
+                  </p>
+                </div>
+              )}
+
+              {/* Details */}
+              {errorDetails?.error_type && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs font-mono">
+                  <div className="text-slate-500 mb-1">Error Details:</div>
+                  <div className="text-slate-700">
+                    {errorDetails.error_type === 'too_short' && (
+                      <div>Length: {errorDetails.length} / {errorDetails.min_required} chars</div>
+                    )}
+                    {errorDetails.error_type === 'not_medical' && (
+                      <div>Medical Score: {errorDetails.medical_score} / {errorDetails.threshold}</div>
+                    )}
+                    {errorDetails.error_type === 'gibberish' && (
+                      <div>Pattern: {typeof errorDetails.details?.details === 'string' ? errorDetails.details.details.substring(0, 50) : 'Unusual pattern detected'}</div>
+                    )}
+                    {errorDetails.error_type === 'quota_exhausted' && (
+                      <div>
+                        <div>Service: {errorDetails.details?.service || 'Google Gemini API'}</div>
+                        <div>Retry After: {errorDetails.details?.retry_after || '24 hours'}</div>
+                      </div>
+                    )}
+                    {errorDetails.error_type === 'api_key_error' && (
+                      <div>Service: {errorDetails.details?.service || 'Google Gemini API'}</div>
+                    )}
+                    {errorDetails.error_type === 'server_error' && errorDetails.details?.message && (
+                      <div>Message: {errorDetails.details.message}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-6 flex gap-3">
+              <button
+                onClick={() => setShowErrorModal(false)}
+                className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold py-3 px-6 rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all shadow-lg hover:shadow-xl"
+              >
+                <i className="fa-solid fa-pen-to-square mr-2"></i>
+                Try Again
+              </button>
+            </div>
+
+            {/* Close Button */}
+            <button
+              onClick={() => setShowErrorModal(false)}
+              className="absolute top-4 right-4 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-colors"
+            >
+              <i className="fa-solid fa-times"></i>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

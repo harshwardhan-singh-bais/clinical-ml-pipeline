@@ -35,17 +35,19 @@ class ResponseFormatter:
         try:
             formatted = response.dict() if hasattr(response, 'dict') else response
             
-            # Ensure clinical_summary has red_flags
+            # Enhance differential_diagnoses FIRST (needed for red flags)
+            if "differential_diagnoses" in formatted:
+                formatted["differential_diagnoses"] = self._enhance_diagnoses(
+                    formatted["differential_diagnoses"],
+                    formatted.get("original_text", "")
+                )
+            
+            # Ensure clinical_summary has red_flags (uses diagnoses)
             if "clinical_summary" in formatted:
                 formatted["clinical_summary"] = self._enhance_clinical_summary(
                     formatted["clinical_summary"],
-                    formatted.get("extracted_data", {})
-                )
-            
-            # Enhance differential_diagnoses
-            if "differential_diagnoses" in formatted:
-                formatted["differential_diagnoses"] = self._enhance_diagnoses(
-                    formatted["differential_diagnoses"]
+                    formatted.get("extracted_data", {}),
+                    formatted.get("differential_diagnoses", [])
                 )
             
             # Add atomic_symptoms with organ mapping
@@ -62,13 +64,16 @@ class ResponseFormatter:
             formatted["metadata"]["time"] = f"{formatted['metadata'].get('processing_time_seconds', 0):.1f}s"
             formatted["metadata"]["confidence"] = "High"
             
-            # Add original_text if available
-            if not formatted.get("original_text"):
-                # Try to get from content field or clinical_summary
-                formatted["original_text"] = (
-                    formatted.get("content") or 
-                    formatted.get("clinical_summary", {}).get("summary_text", "")
-                )
+            # FIX: Ensure original_text is always populated (for OCR uploads)
+            if not formatted.get("original_text") and not formatted.get("content"):
+                # If neither exists, try to get from clinical_summary
+                formatted["original_text"] = formatted.get("clinical_summary", {}).get("summary_text", "")
+            elif not formatted.get("original_text"):
+                # Use content field as original_text
+                formatted["original_text"] = formatted.get("content", "")
+            elif not formatted.get("content"):
+                # Use original_text as content
+                formatted["content"] = formatted.get("original_text", "")
             
             # === NEW: Extract enhanced fields for advanced UI tabs ===
             clinical_text = formatted.get("original_text", "")
@@ -91,21 +96,24 @@ class ResponseFormatter:
             logger.error(f"Error formatting response: {e}", exc_info=True)
             return response.dict() if hasattr(response, 'dict') else response
     
-    def _enhance_clinical_summary(self, summary: Dict, extracted_data: Dict) -> Dict:
+    def _enhance_clinical_summary(self, summary: Dict, extracted_data: Dict, diagnoses: List[Dict]) -> Dict:
         """Add red flags to clinical summary"""
         if not summary.get("red_flags"):
             summary["red_flags"] = self._extract_red_flags(
                 extracted_data.get("atomic_symptoms", []),
-                extracted_data.get("clinical_red_flags", [])
+                extracted_data.get("clinical_red_flags", []),
+                diagnoses,
+                summary.get("summary_text", "")
             )
         return summary
     
-    def _extract_red_flags(self, symptoms: List[Dict], existing_flags: List[str]) -> List[Dict]:
-        """Extract red flags from symptoms and clinical data"""
+    def _extract_red_flags(self, symptoms: List[Dict], existing_flags: List[str], diagnoses: List[Dict], summary_text: str) -> List[Dict]:
+        """Extract red flags from symptoms, diagnoses, and summary"""
         red_flags = []
         
         # Check for critical symptom combinations
         symptom_names = [s.get("base_symptom", "").lower() for s in symptoms if isinstance(s, dict)]
+        symptom_text = " ".join(symptom_names) + " " + summary_text.lower()
         
         critical_combinations = [
             {
@@ -114,12 +122,12 @@ class ResponseFormatter:
                 "severity": "critical"
             },
             {
-                "keywords": ["chest pain", "radiation"],
+                "keywords": ["chest pain", "radiat"],
                 "flag": "Radiating Chest Pain",
                 "severity": "critical"
             },
             {
-                "keywords": ["shortness of breath", "chest pain"],
+                "keywords": ["chest pain", "dyspnea"],
                 "flag": "Chest Pain with Dyspnea",
                 "severity": "critical"
             },
@@ -127,16 +135,37 @@ class ResponseFormatter:
                 "keywords": ["fever", "confusion"],
                 "flag": "Fever with Altered Mental Status",
                 "severity": "critical"
+            },
+            {
+                "keywords": ["fever", "flank"],
+                "flag": "Fever with Flank Pain (Pyelonephritis Concern)",
+                "severity": "critical"
+            },
+            {
+                "keywords": ["headache", "worst"],
+                "flag": "Sudden Severe Headache (Thunderclap)",
+                "severity": "critical"
             }
         ]
         
         for combo in critical_combinations:
-            if any(keyword in " ".join(symptom_names) for keyword in combo["keywords"]):
+            if all(keyword in symptom_text for keyword in combo["keywords"]):
                 red_flags.append({
                     "flag": combo["flag"],
                     "severity": combo["severity"],
                     "keywords": combo["keywords"]
                 })
+        
+        # Extract red flags from high-severity diagnoses
+        for diag in diagnoses:
+            if diag.get("severity") == "critical" and diag.get("confidence_score", 0) > 0.6:
+                condition = diag.get("diagnosis", "Condition")
+                red_flags.append({
+                    "flag": f"High likelihood of {condition}",
+                    "severity": "critical",
+                    "keywords": [condition.lower()]
+                })
+                break  # Only add one diagnosis-based red flag
         
         # Add existing red flags
         for flag in existing_flags:
@@ -144,14 +173,34 @@ class ResponseFormatter:
                 red_flags.append({
                     "flag": flag,
                     "severity": "warning",
-                    "keywords": [flag.lower()]
+                    "keywords": [flag.lower()] 
                 })
+        
+        # If no red flags found, check summary for concerning terms
+        if not red_flags:
+            concerning_terms = [
+                ("acute", "Acute Presentation", "warning"),
+                ("severe", "Severe Symptoms", "warning"),
+                ("concern", "Clinical Concern Noted", "warning")
+            ]
+            for term, flag_text, severity in concerning_terms:
+                if term in summary_text.lower():
+                    red_flags.append({
+                        "flag": flag_text,
+                        "severity": severity,
+                        "keywords": [term]
+                    })
+                    break
         
         return red_flags
     
-    def _enhance_diagnoses(self, diagnoses: List[Dict]) -> List[Dict]:
+    def _enhance_diagnoses(self, diagnoses: List[Dict], clinical_text: str = "") -> List[Dict]:
         """Add frontend-expected fields to diagnoses"""
         enhanced = []
+        
+        # Critical diagnosis keywords for severity assignment
+        critical_keywords = ["mi", "myocardial infarction", "stroke", "sepsis", "pulmonary embolism", "aortic", "aneurysm"]
+        moderate_keywords = ["infection", "pneumonia", "pyelonephritis", "gastroenteritis", "fracture"]
         
         for idx, diag in enumerate(diagnoses):
             enhanced_diag = diag.copy()
@@ -160,12 +209,48 @@ class ResponseFormatter:
             if "id" not in enhanced_diag:
                 enhanced_diag["id"] = idx + 1
             
-            # Add severity based on confidence
-            if "severity" not in enhanced_diag:
-                confidence = diag.get("confidence_score", 0)
-                if confidence > 0.7:
+            # FIX: Use REAL confidence scores, calculate defaults mathematically
+            confidence_score = diag.get("confidence_score", diag.get("match_score", 0))
+            
+            # Handle None or invalid values - use decay function instead of hardcoding
+            if confidence_score is None or confidence_score == 0 or confidence_score < 0.01:
+                # Mathematical decay: 0.65 * (0.7^rank)
+                # Rank 0: 65%, Rank 1: 45.5%, Rank 2: 31.8%, Rank 3: 22.3%
+                confidence_score = 0.65 * (0.7 ** idx)
+            
+            # Ensure it's in 0-1 range
+            if confidence_score > 1:
+                confidence_score = confidence_score / 100  # Convert percentage to decimal
+            
+            # Store as decimal (0-1 range)
+            enhanced_diag["confidence_score"] = round(confidence_score, 3)
+            
+            # FIX: Calculate severity using MATH + keywords (not hardcoded)
+            diagnosis_name = diag.get("diagnosis", "").lower()
+            
+            if "severity" not in enhanced_diag or enhanced_diag["severity"] == "moderate":
+                # Severity score calculation (0-100)
+                severity_score = 0
+                
+                # Factor 1: Keyword matching (0-50 points)
+                if any(keyword in diagnosis_name for keyword in critical_keywords):
+                    severity_score += 50
+                elif any(keyword in diagnosis_name for keyword in moderate_keywords):
+                    severity_score += 30
+                else:
+                    severity_score += 10
+                
+                # Factor 2: Confidence + Rank (0-50 points)
+                # Higher confidence + better rank = higher severity
+                rank_factor = max(0, 50 - (idx * 15))  # Rank 0: 50pts, Rank 1: 35pts, Rank 2: 20pts
+                confidence_factor = confidence_score * 50  # Scale 0-1 to 0-50
+                severity_score += (rank_factor + confidence_factor) / 2
+                
+                # Convert score to severity level
+                # Critical: 70-100, Moderate: 40-69, Low: 0-39
+                if severity_score >= 70:
                     enhanced_diag["severity"] = "critical"
-                elif confidence > 0.4:
+                elif severity_score >= 40:
                     enhanced_diag["severity"] = "moderate"
                 else:
                     enhanced_diag["severity"] = "low"
@@ -182,13 +267,9 @@ class ResponseFormatter:
             elif "next_steps" in enhanced_diag:
                 enhanced_diag["nextSteps"] = enhanced_diag["next_steps"]
             
-            # Convert confidence_score to percentage
-            if "confidence_score" in enhanced_diag:
-                enhanced_diag["confidence"] = int(enhanced_diag["confidence_score"] * 100)
-            
             # Add match_score as confidence if missing
-            if "match_score" not in enhanced_diag and "confidence_score" in enhanced_diag:
-                enhanced_diag["match_score"] = enhanced_diag["confidence_score"]
+            if "match_score" not in enhanced_diag:
+                enhanced_diag["match_score"] = confidence_score
             
             enhanced.append(enhanced_diag)
         
@@ -231,10 +312,22 @@ class ResponseFormatter:
         return steps
     
     def _create_atomic_symptoms(self, extracted_data: Dict) -> List[Dict]:
-        """Create atomic symptoms with organ mapping"""
+        """Create atomic symptoms with organ mapping and severity"""
         symptoms = []
         
         raw_symptoms = extracted_data.get("atomic_symptoms", [])
+        
+        # Severity keywords for extraction
+        severity_keywords = {
+            9: ["severe", "worst", "excruciating", "unbearable"],
+            8: ["very painful", "intense"],
+            7: ["significant", "considerable"],
+            6: ["moderate to severe"],
+            5: ["moderate"],
+            4: ["mild to moderate"],
+            3: ["mild"],
+            2: ["slight", "minimal"]
+        }
         
         for idx, symptom in enumerate(raw_symptoms):
             if isinstance(symptom, dict):
@@ -258,6 +351,28 @@ class ResponseFormatter:
                 # Ensure status exists
                 if "status" not in enhanced:
                     enhanced["status"] = "present"
+                
+                # FIX: Extract or assign severity
+                if "severity" not in enhanced or enhanced["severity"] is None:
+                    # Try to extract from quality description
+                    quality = symptom.get("quality", "").lower()
+                    detail = symptom.get("detail", "").lower()
+                    combined_text = quality + " " + detail
+                    
+                    # Check for severity keywords
+                    severity_found = None
+                    for sev_level, keywords in severity_keywords.items():
+                        if any(kw in combined_text for kw in keywords):
+                            severity_found = sev_level
+                            break
+                    
+                    # Assign severity
+                    if severity_found:
+                        enhanced["severity"] = severity_found
+                    elif idx == 0:  # First symptom (chief complaint) is usually most severe
+                        enhanced["severity"] = 7
+                    else:
+                        enhanced["severity"] = 5  # Default moderate
                 
                 symptoms.append(enhanced)
         

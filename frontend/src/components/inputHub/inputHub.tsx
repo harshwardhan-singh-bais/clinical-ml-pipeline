@@ -1,33 +1,98 @@
 "use client";
 
-import React, { useState } from "react";
-import { FileText, Mic, Upload, Sparkles, Loader2 } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { FileText, Image, Upload, Sparkles, Loader2 } from "lucide-react";
+import { api } from "@/lib/api";
+import { AnalysisResponse } from "@/lib/api";
 
 // 1. Define the props interface
 interface InputHubProps {
-  onAnalyze: (text: string) => void | Promise<void>; // Function passed from parent with text parameter
-  isAnalyzing: boolean;  // Loading state passed from parent
-  value?: string;  // Optional controlled input value
-  onChange?: (text: string) => void;  // Optional change handler
+  onAnalyze: (text: string) => void | Promise<void>;
+  isAnalyzing: boolean;
+  onUploadComplete?: (data: AnalysisResponse) => void;
+  value?: string;
+  onChange?: (text: string) => void;
 }
 
 // 2. Accept props in the component
-const InputHub = ({ onAnalyze, isAnalyzing }: InputHubProps) => {
+const InputHub = ({ onAnalyze, isAnalyzing, onUploadComplete }: InputHubProps) => {
   const [inputText, setInputText] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   const handleClear = () => setInputText("");
-  const handleVoiceInput = () => setIsRecording(!isRecording);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file type
+    const validImageTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+    if (!validImageTypes.includes(file.type)) {
+      alert('Please upload a PNG, JPG, or JPEG image');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // Upload image and get analysis
+      const result = await api.uploadFile(file);
+
+      // Call the parent callback to update state
+      if (onUploadComplete) {
+        onUploadComplete(result);
+      }
+    } catch (error: any) {
+      console.error('Image upload failed:', error);
+      alert(error.message || 'Failed to process image');
+    } finally {
+      setIsUploading(false);
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file type
+    if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
+      alert('Please upload a PDF file');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // Upload PDF and get analysis
+      const result = await api.uploadFile(file);
+
+      // Call the parent callback to update state
+      if (onUploadComplete) {
+        onUploadComplete(result);
+      }
+    } catch (error: any) {
+      console.error('PDF upload failed:', error);
+      alert(error.message || 'Failed to process PDF');
+    } finally {
+      setIsUploading(false);
+      if (pdfInputRef.current) {
+        pdfInputRef.current.value = '';
+      }
+    }
+  };
 
   const placeholderText = "Type or paste clinical notes here...\n\nExample:\nPatient: 67-year-old male\nChief Complaint: Acute chest pain";
   const glassBtnStyle = "flex-1 flex items-center justify-center gap-3 py-4 px-6 rounded-2xl border transition-all duration-300 font-semibold shadow-sm bg-[rgba(255,255,255,0.18)] border-[rgba(255,255,255,0.76)] backdrop-blur-[0.9px] text-slate-700 hover:bg-[rgba(255,255,255,0.3)] hover:border-white hover:-translate-y-0.5 hover:shadow-md";
-  const recordingStyle = "flex-1 flex items-center justify-center gap-3 py-4 px-6 rounded-2xl border transition-all duration-300 font-semibold shadow-sm bg-red-500/10 border-red-200 backdrop-blur-[0.9px] text-red-600 animate-pulse";
+  const uploadingStyle = "flex-1 flex items-center justify-center gap-3 py-4 px-6 rounded-2xl border transition-all duration-300 font-semibold shadow-sm bg-blue-500/10 border-blue-200 backdrop-blur-[0.9px] text-blue-600";
 
   return (
     <div className="w-full h-full">
       <div className="h-full flex flex-col rounded-3xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-[rgba(255,255,255,0.18)] backdrop-blur-[0.9px] border border-[rgba(255,255,255,0.76)]">
 
-        {/* Header and Input Area (Same as before) ... */}
+        {/* Header and Input Area */}
         <div className="flex items-center gap-4 mb-6 shrink-0">
           <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100 shadow-sm">
             <FileText className="w-6 h-6 text-blue-600" />
@@ -50,12 +115,49 @@ const InputHub = ({ onAnalyze, isAnalyzing }: InputHubProps) => {
           </div>
         </div>
 
+        {/* Upload Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6 shrink-0">
-          <button onClick={handleVoiceInput} className={isRecording ? recordingStyle : glassBtnStyle}>
-            <Mic className={`w-5 h-5 ${isRecording ? "animate-pulse" : ""}`} />
-            <span>{isRecording ? "Recording..." : "Voice Input"}</span>
+          {/* Upload Image Button */}
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/jpg"
+            onChange={handleImageUpload}
+            className="hidden"
+            id="image-upload"
+          />
+          <button
+            onClick={() => imageInputRef.current?.click()}
+            disabled={isUploading || isAnalyzing}
+            className={isUploading ? uploadingStyle : glassBtnStyle}
+          >
+            {isUploading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Processing...</span>
+              </>
+            ) : (
+              <>
+                <Image className="w-5 h-5" />
+                <span>Upload Image</span>
+              </>
+            )}
           </button>
-          <button className={glassBtnStyle}>
+
+          {/* Upload PDF Button */}
+          <input
+            ref={pdfInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={handlePdfUpload}
+            className="hidden"
+            id="pdf-upload"
+          />
+          <button
+            onClick={() => pdfInputRef.current?.click()}
+            disabled={isUploading || isAnalyzing}
+            className={glassBtnStyle}
+          >
             <Upload className="w-5 h-5" />
             <span>Upload PDF</span>
           </button>
@@ -66,10 +168,10 @@ const InputHub = ({ onAnalyze, isAnalyzing }: InputHubProps) => {
             Reset Form
           </button>
 
-          {/* 3. Update the Button to use the Prop */}
+          {/* Analyze Button */}
           <button
-            onClick={() => onAnalyze(inputText)} // Calls parent function with text
-            disabled={!inputText || isAnalyzing}
+            onClick={() => onAnalyze(inputText)}
+            disabled={!inputText || isAnalyzing || isUploading}
             className="px-7 py-3.5 text-sm font-bold text-white rounded-xl shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none hover:shadow-blue-500/40 hover:-translate-y-0.5 active:translate-y-0"
           >
             {isAnalyzing ? (

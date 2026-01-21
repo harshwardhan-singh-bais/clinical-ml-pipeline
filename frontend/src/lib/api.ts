@@ -13,7 +13,7 @@ export interface AnalysisRequest {
 
 export interface AnalysisResponse {
     request_id: string;
-    clinical_summary: {
+    clinical_summary?: {
         summary_text: string;
         chief_complaint?: string;
         symptoms?: string[];
@@ -26,30 +26,65 @@ export interface AnalysisResponse {
             keywords: string[];
         }>;
     };
+    summary?: { // Backend uses this field name
+        summary_text: string;
+        chief_complaint?: string;
+        symptoms?: string[];
+        negations?: string[];
+        timeline?: string;
+        clinical_findings?: string;
+        red_flags?: Array<{
+            flag: string;
+            severity: string;
+            keywords: string[];
+        }>;
+    };
+    red_flags?: Array<{ // Backend might put this at root level
+        flag: string;
+        severity: string;
+        keywords: string[];
+    }>;
     differential_diagnoses: Array<{
         id: number;
-        condition: string;
-        confidence: number;
+        condition?: string;
+        diagnosis?: string; // Backend uses this field name sometimes
+        confidence?: number;
+        confidence_score?: number; // Backend uses this field name sometimes
         severity: string;
         source: string;
         reasoning: string;
-        evidence: Array<{
+        evidence?: Array<{
             source: string;
-            excerpt: string;
-            similarity: number;
-            keywords: string[];
+            excerpt?: string;
+            content?: string; // Backend uses this field name sometimes
+            similarity?: number;
+            similarity_score?: number; // Backend uses this field name sometimes
+            keywords?: string[];
+            citation?: string;
         }>;
-        nextSteps: string[];
+        supporting_evidence?: Array<{ // Backend uses this field name sometimes
+            source: string;
+            excerpt?: string;
+            content?: string;
+            similarity?: number;
+            similarity_score?: number;
+            keywords?: string[];
+            citation?: string;
+        }>;
+        nextSteps?: string[];
+        next_steps?: string[]; // Backend uses this field name sometimes
     }>;
     extracted_data?: {
         atomic_symptoms?: Array<{
             id: string;
-            symptom: string;
-            detail: string;
-            severity: number;
+            symptom?: string;
+            base_symptom?: string; // Backend uses this field name sometimes
+            detail?: string;
+            quality?: string; // Backend uses this field name sometimes
+            severity?: number;
             status: 'present' | 'absent';
-            organ: string;
-            keywords: string[];
+            organ?: string;
+            keywords?: string[];
         }>;
         demographics?: {
             age?: number;
@@ -62,14 +97,16 @@ export interface AnalysisResponse {
         clinical_red_flags?: string[];
     };
     metadata?: {
-        processing_time_seconds: number;
+        processing_time_seconds?: number;
         model_version?: string;
-        timestamp: string;
+        timestamp?: string;
         time?: string;
         model?: string;
         confidence?: string;
     };
+    processing_time_seconds?: number; // Backend puts this at root level
     original_text?: string;
+    content?: string; // Backend might use this field name
     uncertainty?: {
         level: string;
         basis: string;
@@ -114,13 +151,29 @@ class ApiClient {
 
             if (!response.ok) {
                 const error = await response.json();
-                throw new Error(error.detail || 'Analysis failed');
+                // Handle both string and object error details
+                const errorMessage = typeof error.detail === 'object'
+                    ? JSON.stringify(error.detail)
+                    : (error.detail || 'Analysis failed');
+
+                // Don't throw Error (triggers Next.js overlay), return rejected promise
+                return Promise.reject({
+                    message: errorMessage,
+                    status: response.status
+                });
             }
 
             return await response.json();
-        } catch (error) {
+        } catch (error: any) {
+            // Check if it's our custom rejection
+            if (error.message && error.status) {
+                return Promise.reject(error);
+            }
             console.error('API Error:', error);
-            throw error;
+            return Promise.reject({
+                message: 'Network error or server unavailable',
+                status: 0
+            });
         }
     }
 

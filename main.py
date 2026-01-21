@@ -18,6 +18,7 @@ import logging
 from models.schemas import ClinicalNoteRequest, ClinicalNoteResponse
 from services.clinical_pipeline import ClinicalPipeline
 from services.response_formatter import response_formatter
+from services.input_validator import input_validator
 
 # Configure logging
 logging.basicConfig(
@@ -65,7 +66,7 @@ async def analyze_clinical_note_v1(request: ClinicalNoteRequest):
 @app.post("/api/analyze", response_model=ClinicalNoteResponse)
 async def analyze_clinical_note(request: ClinicalNoteRequest):
     """
-    Analyze raw clinical note and generate summary + differential diagnoses.
+    ✨ MAIN API ENDPOINT - Processes clinical notes through AI pipeline
     
     PROBLEM STATEMENT IMPLEMENTATION:
     - Input: Large, unstructured clinical notes
@@ -83,6 +84,23 @@ async def analyze_clinical_note(request: ClinicalNoteRequest):
     try:
         logger.info(f"Received analyze request for patient: {request.patient_id}")
         
+        # ✅ VALIDATE INPUT FIRST
+        is_valid, error_message, validation_details = input_validator.validate(request.content)
+        
+        if not is_valid:
+            logger.warning(f"Invalid input detected: {error_message}")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": error_message,
+                    "error_type": validation_details.get("error_type"),
+                    "suggestion": validation_details.get("suggestion"),
+                    "details": validation_details
+                }
+            )
+        
+        logger.info(f"Input validation passed. Medical score: {validation_details.get('medical_score')}")
+        
         # Process through pipeline
         response = pipeline.process_clinical_note(request)
         
@@ -91,11 +109,61 @@ async def analyze_clinical_note(request: ClinicalNoteRequest):
         
         return formatted_response
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (validation errors)
+        raise
     except Exception as e:
+        error_str = str(e).lower()
         logger.error(f"Error processing clinical note: {e}", exc_info=True)
+        
+        # Check for Gemini API quota errors
+        if "quota" in error_str or "resource_exhausted" in error_str or "429" in error_str:
+            logger.error("⚠️ Gemini API quota exhausted!")
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "AI service quota has been exhausted",
+                    "error_type": "quota_exhausted",
+                    "suggestion": "The AI analysis service has reached its daily limit. Please try again later or contact support to increase quota.",
+                    "details": {
+                        "error_type": "quota_exhausted",
+                        "service": "Google Gemini API",
+                        "retry_after": "24 hours",
+                        "suggestion": "The AI analysis service has reached its daily limit. Please try again later or contact support to increase quota."
+                    }
+                }
+            )
+        
+        # Check for API key errors
+        if "api_key" in error_str or "invalid" in error_str and "key" in error_str:
+            logger.error("⚠️ Invalid Gemini API key!")
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "error": "AI service authentication failed",
+                    "error_type": "api_key_error",
+                    "suggestion": "There is a problem with the AI service configuration. Please contact support.",
+                    "details": {
+                        "error_type": "api_key_error",
+                        "service": "Google Gemini API",
+                        "suggestion": "There is a problem with the AI service configuration. Please contact support."
+                    }
+                }
+            )
+        
+        # Generic server error
         raise HTTPException(
             status_code=500,
-            detail=f"Internal server error: {str(e)}"
+            detail={
+                "error": "An unexpected error occurred during analysis",
+                "error_type": "server_error",
+                "suggestion": "Please try again. If the problem persists, contact support.",
+                "details": {
+                    "error_type": "server_error",
+                    "message": str(e)[:200],  # Truncate long errors
+                    "suggestion": "Please try again. If the problem persists, contact support."
+                }
+            }
         )
 
 
@@ -107,7 +175,7 @@ async def analyze_clinical_note_upload(
     """
     Analyze clinical note from uploaded file.
     
-    Accepts: PDF, TXT, DOCX, images (for OCR)
+    Accepts: PDF, TXT, images (PNG, JPG, JPEG) with OCR
     
     Args:
         file: Uploaded clinical note file
@@ -122,33 +190,85 @@ async def analyze_clinical_note_upload(
         # Read file content
         file_content = await file.read()
         
-        # Determine input type from file extension
+        # Determine file type from extension
         file_ext = file.filename.split('.')[-1].lower()
         
-        input_type_map = {
-            'txt': 'text',
-            'pdf': 'pdf',
-            'docx': 'docx',
-            'doc': 'docx',
-            'png': 'image',
-            'jpg': 'image',
-            'jpeg': 'image',
-            'tiff': 'image'
-        }
+        # Import OCR service
+        from services.ocr_service import ocr_service
         
-        input_type = input_type_map.get(file_ext, 'text')
+        # Extract text based on file type
+        extracted_text = None
         
-        # Create request
-        import base64
-        file_base64 = base64.b64encode(file_content).decode('utf-8')
+        if file_ext in ['png', 'jpg', 'jpeg', 'tiff', 'bmp']:
+            # Image file - use OCR
+            logger.info(f"Processing image file: {file.filename}")
+            mime_type = f"image/{file_ext if file_ext != 'jpg' else 'jpeg'}"
+            extracted_text = ocr_service.extract_text_from_image(file_content, mime_type)
+            
+        elif file_ext == 'pdf':
+            # PDF file - use OCR
+            logger.info(f"Processing PDF file: {file.filename}")
+            extracted_text = ocr_service.extract_text_from_pdf(file_content)
+            
+        elif file_ext == 'txt':
+            # Plain text file
+            logger.info(f"Processing text file: {file.filename}")
+            extracted_text = file_content.decode('utf-8')
+            
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": f"Unsupported file type: .{file_ext}",
+                    "error_type": "unsupported_file",
+                    "suggestion": "Please upload a PDF, PNG, JPG, JPEG, or TXT file.",
+                    "details": {
+                        "error_type": "unsupported_file",
+                        "file_extension": file_ext,
+                        "supported": ["pdf", "png", "jpg", "jpeg", "txt"]
+                    }
+                }
+            )
         
+        if not extracted_text:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "No text could be extracted from the file",
+                    "error_type": "extraction_failed",
+                    "suggestion": "Please ensure the file contains readable text or try a different file.",
+                    "details": {
+                        "error_type": "extraction_failed",
+                        "file_name": file.filename
+                    }
+                }
+            )
+        
+        logger.info(f"✅ Extracted {len(extracted_text)} characters from {file.filename}")
+        
+        # Validate extracted text
+        is_valid, error_message, validation_details = input_validator.validate(extracted_text)
+        
+        if not is_valid:
+            logger.warning(f"Invalid extracted text: {error_message}")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": error_message,
+                    "error_type": validation_details.get("error_type"),
+                    "suggestion": validation_details.get("suggestion"),
+                    "details": validation_details
+                }
+            )
+        
+        # Create request with extracted text
         request = ClinicalNoteRequest(
-            input_type=input_type,
-            file_base64=file_base64,
-            patient_id=patient_id
+            input_type='text',
+            content=extracted_text,
+            patient_id=patient_id or f"UPLOAD-{file.filename.split('.')[0]}"
         )
         
-        # Process through pipeline
+        # Process through pipeline  
         response = pipeline.process_clinical_note(request)
         
         # Format response for frontend
@@ -156,11 +276,42 @@ async def analyze_clinical_note_upload(
         
         return formatted_response
         
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
+        error_str = str(e).lower()
         logger.error(f"Error processing uploaded file: {e}", exc_info=True)
+        
+        # Check for Gemini API quota errors
+        if "quota" in error_str or "resource_exhausted" in error_str or "429" in error_str:
+            logger.error("⚠️ Gemini API quota exhausted during OCR!")
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "AI service quota has been exhausted",
+                    "error_type": "quota_exhausted",
+                    "suggestion": "The AI OCR service has reached its daily limit. Please try again later.",
+                    "details": {
+                        "error_type": "quota_exhausted",
+                        "service": "Google Gemini Vision API",
+                        "retry_after": "24 hours"
+                    }
+                }
+            )
+        
+        # Generic error
         raise HTTPException(
             status_code=500,
-            detail=f"Internal server error: {str(e)}"
+            detail={
+                "error": f"Failed to process file: {str(e)[:200]}",
+                "error_type": "server_error",
+                "suggestion": "Please try again or use a different file.",
+                "details": {
+                    "error_type": "server_error",
+                    "message": str(e)[:200]
+                }
+            }
         )
 
 
