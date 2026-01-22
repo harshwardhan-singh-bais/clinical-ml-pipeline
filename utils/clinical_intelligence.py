@@ -199,19 +199,37 @@ def identify_red_flags(diagnoses: List[Dict], normalized_data: Dict) -> List[str
     """
     flags = []
     
+    # 🔍 DEBUG: Log what we're checking
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("=" * 80)
+    logger.info("🔍 RED FLAGS DETECTION")
+    logger.info("=" * 80)
+    logger.info(f"Checking {len(diagnoses)} diagnoses for red flags...")
+    
     # Check for high-risk diagnoses with sufficient confidence
-    for dx in diagnoses[:3]:  # Top 3 only
+    for idx, dx in enumerate(diagnoses[:3], 1):  # Top 3 only
         dx_name = dx.get("diagnosis", "").upper()
         risk_level = dx.get("risk_level", "")
         confidence = dx.get("confidence", {}).get("overall_confidence", 0)
         
+        logger.info(f"  Diagnosis #{idx}: {dx_name}")
+        logger.info(f"    Risk Level: {risk_level}")
+        logger.info(f"    Confidence: {confidence:.2f}")
+        
         if "RED" in risk_level and confidence > 0.55:
+            logger.info(f"    ✅ HIGH RISK + HIGH CONFIDENCE - Checking for specific conditions...")
             if "ACUTE CORONARY" in dx_name or "MYOCARDIAL" in dx_name:
                 flags.append("🚨 CRITICAL: Possible ACS/MI - Immediate ECG and cardiac biomarkers required")
+                logger.info(f"    🚨 RED FLAG ADDED: Cardiac")
             elif "AORTIC DISSECTION" in dx_name:
                 flags.append("🚨 LIFE-THREATENING: Possible aortic dissection - STAT CT angiography, BP control")
+                logger.info(f"    🚨 RED FLAG ADDED: Aortic dissection")
             elif "PULMONARY EMBOLISM" in dx_name:
                 flags.append("🚨 HIGH RISK: Possible PE - Consider immediate anticoagulation pending imaging")
+                logger.info(f"    🚨 RED FLAG ADDED: PE")
+        else:
+            logger.info(f"    ⏭️  Skipped (risk={risk_level}, conf={confidence:.2f})")
     
     # Check vital signs
     vitals = normalized_data.get("vitals", {})
@@ -238,6 +256,16 @@ def identify_red_flags(diagnoses: List[Dict], normalized_data: Dict) -> List[str
     if "chest pain" in symptoms_str and ("diaphoresis" in symptoms_str or "sweating" in symptoms_str):
         if not any("CARDIAC" in flag or "ACS" in flag for flag in flags):
             flags.append("⚠️  CHEST PAIN + DIAPHORESIS: Consider cardiac etiology")
+            logger.info(f"  🚨 RED FLAG ADDED: Chest pain + diaphoresis combo")
+    
+    logger.info("=" * 80)
+    logger.info(f"🔍 TOTAL RED FLAGS GENERATED: {len(flags)}")
+    if flags:
+        for i, flag in enumerate(flags, 1):
+            logger.info(f"  {i}. {flag}")
+    else:
+        logger.info("  ⚠️  NO RED FLAGS IDENTIFIED")
+    logger.info("=" * 80)
     
     return flags
 

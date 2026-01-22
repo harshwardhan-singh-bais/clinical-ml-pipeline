@@ -1,0 +1,178 @@
+DETECTED EXTERNAL PACKAGES
+================================================================================
+
+Pillow                                   # from: PIL
+PyPDF2
+audit
+chunking
+clinical_pipeline
+datasets
+db
+document_processor
+easyocr
+embeddings
+fastapi
+fuzzywuzzy                               # from: fuzzywuzzy
+google-generativeai                      # from: google
+langchain-core                           # from: langchain_core
+langchain-google-genai                   # from: langchain_google_genai
+langchain_community
+langchain_text_splitters
+llm_service
+numpy
+pandas
+psycopg2
+pydantic
+pydantic_settings
+python-dotenv                            # from: dotenv
+qdrant-client                            # from: qdrant_client
+retrieval
+schemas
+sentence-transformers                    # from: sentence_transformers
+settings
+supabase
+tiktoken
+uvicorn
+validation
+
+
+DETAILED IMPORT USAGE
+================================================================================
+
+
+PIL:
+  - services\document_processor.py
+
+PyPDF2:
+  - services\document_processor.py
+
+audit:
+  - services\__init__.py
+
+chunking:
+  - services\__init__.py
+
+clinical_pipeline:
+  - services\__init__.py
+
+datasets:
+  - scripts\compare_3way_diagnosis.py
+  - scripts\compare_diagnosis_datasets.py
+  - scripts\index_pmc.py
+  - scripts\ingest_open_patients.py
+  - scripts\load_asclepius_notes.py
+  - scripts\load_augmented_notes.py
+  - scripts\load_medcase_reasoning.py
+  - scripts\test_chain_of_diagnosis.py
+  - scripts\test_clinical_guidelines.py
+  - scripts\test_ddxplus_pipeline.py
+  - scripts\test_full_pipeline.py
+  - scripts\test_gretelai_symptom_diagnosis.py
+  - scripts\test_ncbi_disease.py
+  - services\asclepius_loader.py
+  - services\augmented_loader.py
+  - services\ddxplus_service.py
+  - services\emrqa_diagnosis.py
+  - services\guidelines_diagnosis.py
+  - services\medcase_service.py
+  - services\open_patients_direct.py
+  - services\symptom_disease_service.py
+
+db:
+  - utils\__init__.py
+
+document_processor:
+  - services\__init__.py
+
+dotenv:
+  - config\settings.py
+
+easyocr:
+  - services\document_processor.py
+
+embeddings:
+  - utils\__init__.py
+
+fastapi:
+  - app\__init__.py
+  - app\routes.py
+  - main.py
+
+fuzzywuzzy:
+  - services\symptom_mappers.py
+
+google:
+  - services\enhanced_normalizer.py
+  - services\enhanced_normalizer_BACKUP.py
+  - services\hypothesis_generation.py
+  - services\llm_grader.py
+  - services\llm_service.py
+  - services\normalization_service.py
+
+langchain_community:
+  - services\retrieval.py
+
+langchain_core:
+  - services\chunking.py
+  - services\llm_service.py
+
+langchain_google_genai:
+  - services\llm_service.py
+
+langchain_text_splitters:
+  - services\chunking.py
+
+llm_service:
+  - services\__init__.py
+
+numpy:
+  - scripts\test_embeddings.py
+  - services\confidence_scorer.py
+  - utils\db.py
+
+pandas:
+  - scripts\test_ddxplus_pipeline.py
+  - scripts\test_gretelai_symptom_diagnosis.py
+  - services\symptom_mappers.py
+
+psycopg2:
+  - scripts\fix_similarity_threshold.py
+  - scripts\init_db.py
+  - scripts\recreate_vector_table.py
+  - utils\db.py
+
+pydantic:
+  - models\schemas.py
+
+pydantic_settings:
+  - config\settings.py
+
+qdrant_client:
+  - services\qdrant_service.py
+
+retrieval:
+  - services\__init__.py
+
+schemas:
+  - models\__init__.py
+
+sentence_transformers:
+  - services\reranker.py
+  - utils\embeddings.py
+
+settings:
+  - config\__init__.py
+
+supabase:
+  - services\audit.py
+  - utils\db.py
+
+tiktoken:
+  - services\chunking.py
+
+uvicorn:
+  - app\main.py
+  - main.py
+
+validation:
+  - services\__init__.py

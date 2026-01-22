@@ -6,7 +6,7 @@ Phase 17: API Response
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Any
 from datetime import datetime
 from enum import Enum
 from dataclasses import dataclass
@@ -219,6 +219,10 @@ class DifferentialDiagnosis(BaseModel):
         default="Blue/Low",
         description="Risk category based on confidence: Red/Danger, Orange/Warning, Blue/Low"
     )
+    severity: str = Field(
+        default="moderate",
+        description="Severity level: 'critical', 'moderate', or 'low' - used for frontend display"
+    )
 
     patient_justification: List[str] = Field(
         default_factory=list,
@@ -240,6 +244,10 @@ class DifferentialDiagnosis(BaseModel):
     initial_management: List[str] = Field(
         default_factory=list,
         description="Initial treatment/management recommendations"
+    )
+    next_steps: List[str] = Field(
+        default_factory=list,
+        description="Recommended next steps/action plan for this diagnosis (combines tests + management)"
     )
     comparative_reasoning: str = Field(
         default="",
@@ -352,9 +360,9 @@ class ClinicalNoteResponse(BaseModel):
         default_factory=list,
         description="Non-critical warnings (e.g., insufficient evidence)"
     )
-    red_flags: List[str] = Field(
+    red_flags: List[Any] = Field(
         default_factory=list,
-        description="Critical alerts requiring immediate clinical attention"
+        description="Critical alerts requiring immediate clinical attention (strings or objects with flag, severity, keywords)"
     )
     missing_information: List[str] = Field(
         default_factory=list,

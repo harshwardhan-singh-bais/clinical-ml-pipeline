@@ -32,7 +32,17 @@ interface OutputSectionProps {
   data?: AnalysisResponse | null;
 }
 
+
 const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) => {
+  // 🔍 DEBUG: Log the API response to check if severity exists
+  console.log("🔍 Full API Response:", data);
+  console.log("🔍 Differential Diagnoses:", data?.differential_diagnoses);
+  if (data?.differential_diagnoses?.[0]) {
+    console.log("🔍 First Diagnosis Object:", data.differential_diagnoses[0]);
+    console.log("🔍 Severity field:", data.differential_diagnoses[0].severity);
+    console.log("🔍 Next Steps field:", data.differential_diagnoses[0].next_steps);
+  }
+
   const [activeTab, setActiveTab] = useState("summary");
   const [highlightedText, setHighlightedText] = useState<string[]>([]);
   const [selectedSymptom, setSelectedSymptom] = useState<any>(null);
@@ -65,6 +75,10 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
   // AI Summary - Backend returns 'summary' not 'clinical_summary'!
   const summaryText = data?.clinical_summary?.summary_text || data?.summary?.summary_text || "No summary available. Backend did not return analysis.";
   const redFlags = data?.clinical_summary?.red_flags || data?.red_flags || [];
+
+  // 🔍 DEBUG: Check red_flags structure
+  console.log("🔍 Red Flags from API:", redFlags);
+  console.log("🔍 Red Flags type:", typeof redFlags, Array.isArray(redFlags) ? `Array of ${redFlags.length} items` : 'Not an array');
 
   // Differential Diagnoses - USE REAL DATA ONLY
   const differentialDiagnoses = data?.differential_diagnoses || [];
@@ -288,7 +302,9 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
                         <div className="text-xs font-bold text-slate-400 uppercase">Confidence</div>
                         <div className="text-2xl font-bold text-slate-800">
                           {(() => {
-                            const conf = diag.confidence || diag.confidence_score || 0;
+                            // confidence is an object with overall_confidence field
+                            const confObj = diag.confidence;
+                            const conf = confObj?.overall_confidence || diag.confidence_score || 0;
                             // Convert to percentage (0-1 scale → 0-100)
                             const percentage = conf > 1 ? conf : Math.round(conf * 100);
                             return `${percentage}%`;
@@ -297,13 +313,15 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
                         <div className="w-24 h-1.5 bg-slate-200 rounded-full mt-1 overflow-hidden">
                           <div
                             className={`h-full rounded-full ${(() => {
-                              const conf = diag.confidence || diag.confidence_score || 0;
+                              const confObj = diag.confidence;
+                              const conf = confObj?.overall_confidence || diag.confidence_score || 0;
                               const percentage = conf > 1 ? conf : conf * 100;
                               return percentage > 80 ? 'bg-green-500' : 'bg-orange-500';
                             })()}`}
                             style={{
                               width: `${(() => {
-                                const conf = diag.confidence || diag.confidence_score || 0;
+                                const confObj = diag.confidence;
+                                const conf = confObj?.overall_confidence || diag.confidence_score || 0;
                                 return conf > 1 ? conf : Math.round(conf * 100);
                               })()}%`
                             }}

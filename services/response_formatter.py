@@ -50,6 +50,13 @@ class ResponseFormatter:
                     formatted.get("differential_diagnoses", [])
                 )
             
+            # NEW: Convert root-level red_flags from strings to objects
+            if "red_flags" in formatted and formatted["red_flags"]:
+                # If red_flags are strings (from identify_red_flags()), convert to objects
+                if isinstance(formatted["red_flags"], list) and len(formatted["red_flags"]) > 0:
+                    if isinstance(formatted["red_flags"][0], str):
+                        formatted["red_flags"] = self._convert_red_flags_to_objects(formatted["red_flags"])
+            
             # Add atomic_symptoms with organ mapping
             if "extracted_data" in formatted:
                 formatted["extracted_data"]["atomic_symptoms"] = self._create_atomic_symptoms(
@@ -261,11 +268,15 @@ class ResponseFormatter:
                     enhanced_diag["supporting_evidence"]
                 )
             
-            # Add nextSteps if missing
-            if "nextSteps" not in enhanced_diag and "next_steps" not in enhanced_diag:
-                enhanced_diag["nextSteps"] = self._generate_next_steps(diag)
-            elif "next_steps" in enhanced_diag:
+            # Add nextSteps and next_steps (backend schema uses next_steps, frontend may use nextSteps)
+            if "next_steps" not in enhanced_diag and "nextSteps" not in enhanced_diag:
+                generated_steps = self._generate_next_steps(diag)
+                enhanced_diag["next_steps"] = generated_steps
+                enhanced_diag["nextSteps"] = generated_steps  # Also add camelCase for frontend
+            elif "next_steps" in enhanced_diag and "nextSteps" not in enhanced_diag:
                 enhanced_diag["nextSteps"] = enhanced_diag["next_steps"]
+            elif "nextSteps" in enhanced_diag and "next_steps" not in enhanced_diag:
+                enhanced_diag["next_steps"] = enhanced_diag["nextSteps"]
             
             # Add match_score as confidence if missing
             if "match_score" not in enhanced_diag:
@@ -387,6 +398,51 @@ class ResponseFormatter:
                 return organ
         
         return "general"
+    
+    def _convert_red_flags_to_objects(self, red_flags_strings: List[str]) -> List[Dict]:
+        """
+        Convert string red flags from identify_red_flags() into proper objects
+        
+        Args:
+            red_flags_strings: List of red flag strings from identify_red_flags()
+            
+        Returns:
+            List of red flag objects with flag, severity, and keywords fields
+        """
+        red_flag_objects = []
+        
+        for flag_str in red_flags_strings:
+            # Determine severity from emoji/prefix
+            if "🚨" in flag_str or "CRITICAL" in flag_str or "LIFE-THREATENING" in flag_str:
+                severity = "critical"
+            elif "⚠️" in flag_str or "WARNING" in flag_str or "HIGH RISK" in flag_str:
+                severity = "warning"
+            else:
+                severity = "info"
+            
+            # Extract keywords for highlighting
+            keywords = []
+            flag_lower = flag_str.lower()
+            
+            # Common medical keywords to extract
+            keyword_terms = [
+                "chest pain", "diaphoresis", "sweating", "cardiac", "acs", "mi",
+                "aortic dissection", "pulmonary embolism", "pe", "hypoxemia",
+                "hypotension", "tachycardia", "shock", "sepsis"
+            ]
+            
+            for term in keyword_terms:
+                if term in flag_lower:
+                    keywords.append(term)
+            
+            # Create object
+            red_flag_objects.append({
+                "flag": flag_str,
+                "severity": severity,
+                "keywords": keywords if keywords else ["alert"]
+            })
+        
+        return red_flag_objects
 
 
 # Singleton instance

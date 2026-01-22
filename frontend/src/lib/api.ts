@@ -48,8 +48,17 @@ export interface AnalysisResponse {
         id: number;
         condition?: string;
         diagnosis?: string; // Backend uses this field name sometimes
-        confidence?: number;
-        confidence_score?: number; // Backend uses this field name sometimes
+        confidence?: {
+            overall_confidence: number;
+            evidence_strength: number;
+            reasoning_consistency: number;
+            citation_count: number;
+            uncertainty?: number;
+            lower_bound?: number;
+            upper_bound?: number;
+            uncertainty_sources?: string[];
+        };
+        confidence_score?: number; // Fallback if confidence object doesn't exist
         severity: string;
         source: string;
         reasoning: string;

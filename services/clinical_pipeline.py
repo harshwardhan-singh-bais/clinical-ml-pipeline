@@ -1127,18 +1127,35 @@ OUTPUT (JSON only, no markdown):
                 else:
                     comparative = ""
                 
+                # Calculate severity based on risk level and confidence
+                if risk_cat == "Red/Danger" or llm_confidence >= 0.8:
+                    severity_level = "critical"
+                elif risk_cat == "Orange/Warning" or llm_confidence >= 0.5:
+                    severity_level = "moderate"
+                else:
+                    severity_level = "low"
+                
+                # Combine recommended tests and initial management into next_steps
+                next_steps_combined = []
+                if recommended_tests:
+                    next_steps_combined.extend(recommended_tests)
+                if initial_mgmt:
+                    next_steps_combined.extend(initial_mgmt)
+                
                 final_diagnoses.append(DifferentialDiagnosis(
                     diagnosis=dx_name,
                     priority=idx,
                     description=f"Evidence type: {dx.get('evidence_type', 'unknown')}",
                     status="evidence-supported" if dx.get("external_evidence") else "clinically-plausible",
                     risk_level=risk_cat,
+                    severity=severity_level,  # NEW: Add severity
                     patient_justification=patient_justification,
                     supporting_evidence=evidence_citations,
                     reasoning=dx.get("reasoning", ""),
                     confidence=confidence,
                     recommended_tests=recommended_tests,
                     initial_management=initial_mgmt,
+                    next_steps=next_steps_combined,  # NEW: Add next_steps
                     comparative_reasoning=comparative
                 ))
             
@@ -1152,6 +1169,11 @@ OUTPUT (JSON only, no markdown):
                  for dx in final_diagnoses],
                 normalized_data
             )
+            
+            # 🔍 DEBUG: Log what identify_red_flags returned
+            logger.info(f"🔍 RED FLAGS RETURNED FROM identify_red_flags(): {red_flags}")
+            logger.info(f"🔍 RED FLAGS TYPE: {type(red_flags)}")
+            logger.info(f"🔍 RED FLAGS COUNT: {len(red_flags) if red_flags else 0}")
             
             missing_info = identify_missing_information(normalized_data)
             
