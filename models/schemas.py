@@ -389,6 +389,12 @@ class ClinicalNoteResponse(BaseModel):
         description="Structured extracted data including atomic_symptoms with severity, demographics, etc."
     )
     
+    # Action Plan (Gemini-generated immediate and follow-up actions)
+    action_plan: Optional[Dict[str, List[Dict[str, str]]]] = Field(
+        None,
+        description="Clinical action plan with immediate (STAT) and followUp actions"
+    )
+    
     class Config:
         json_schema_extra = {
             "example": {

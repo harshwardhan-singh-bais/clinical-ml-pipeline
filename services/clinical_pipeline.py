@@ -27,6 +27,8 @@ from services.confidence_scorer import ConfidenceScorer
 from services.validation import ValidationService
 from services.audit import AuditLogger
 from services.red_flags_detector import red_flags_detector  # NEW: Gemini-powered red flags
+from services.action_plan_generator import action_plan_generator  # NEW: Gemini-powered actions
+from services.fallback_diagnosis_generator import fallback_diagnosis_generator #NEW: Gemini fallback when 0 diagnoses
 from utils.clinical_intelligence import (
     get_recommended_tests,
     get_initial_management,
@@ -1159,6 +1161,118 @@ OUTPUT (JSON only, no markdown):
                     comparative_reasoning=comparative
                 ))
             
+            # ==================================================================================
+            # 🚨 CRITICAL FALLBACK: If 0 diagnoses after validation, use Gemini fallback
+            # ==================================================================================
+            if len(final_diagnoses) == 0:
+                logger.critical("🚨🚨🚨 ZERO DIAGNOSES AFTER VALIDATION! Activating Gemini fallback...")
+                logger.warning("⚠️  All 773 disease candidates were removed by Gemini validation")
+                logger.info("🤖 Generating 3 potential diagnoses using pure Gemini reasoning...")
+                
+                # Generate fallback diagnoses using Gemini
+                gemini_fallback_diagnoses = fallback_diagnosis_generator.generate_fallback_diagnoses(
+                    clinical_note=extracted_text,
+                    normalized_data=normalized_data
+                )
+                
+                # Process each Gemini fallback diagnosis through normal pipeline
+                for idx, gemini_dx in enumerate(gemini_fallback_diagnoses, 1):
+                    dx_name = gemini_dx.get("diagnosis", f"Unknown Diagnosis {idx}")
+                    gemini_confidence = gemini_dx.get("confidence", 0.5)
+                    gemini_reasoning = gemini_dx.get("reasoning", "No reasoning provided")
+                    gemini_severity = gemini_dx.get("severity", "moderate")
+                    
+                    logger.info(f"  Processing Gemini Fallback #{idx}: {dx_name}")
+                    
+                    # Retrieve evidence from StatPearls and Open-Patients for fallback diagnosis
+                    # (Evidence retrieval still works normally)
+                    statpearls_evidence_fallback = []
+                    open_patients_evidence_fallback = []
+                    
+                    try:
+                        # StatPearls evidence
+                        if self.statpearls_retriever:
+                            statpearls_evidence_fallback = self.statpearls_retriever.retrieve_evidence(
+                                query=dx_name,
+                                top_k=2  # Fewer for fallback
+                            )
+                        
+                        # Open-Patients evidence
+                        if self.qdrant_service:
+                            open_patients_evidence_fallback = self.qdrant_service.search_similar_cases(
+                                query=dx_name,
+                                collection_name="open_patients",
+                                limit=2  # Fewer for fallback
+                            )
+                    except Exception as e:
+                        logger.warning(f"Evidence retrieval failed for fallback diagnosis: {e}")
+                    
+                    # Build evidence list for confidence scorer
+                    evidence_for_confidence = []
+                    for ev in statpearls_evidence_fallback:
+                        evidence_for_confidence.append({
+                            "source": "StatPearls",
+                            "excerpt": ev.get("content", ""),
+                            "similarity": ev.get("similarity_score", 0.5)
+                        })
+                    for ev in open_patients_evidence_fallback:
+                        evidence_for_confidence.append({
+                            "source": "Open-Patients",
+                            "excerpt": ev.get("content", ""),
+                            "similarity": ev.get("similarity", 0.5)
+                        })
+                    
+                    # Calculate confidence score (hybrid: Gemini + evidence)
+                    confidence_scores = self.confidence_scorer.calculate_confidence(
+                        diagnosis=dx_name,
+                        symptoms=normalized_data.get("symptom_names", []),
+                        evidence=evidence_for_confidence,
+                        reasoning=""
+                    )
+                    
+                    # Blend Gemini confidence with evidence-based confidence
+                    blended_confidence = (gemini_confidence * 0.6) + (confidence_scores.get("overall_confidence", 0.3) * 0.4)
+                    
+                    confidence = ConfidenceScore(
+                        overall_confidence=blended_confidence,
+                        evidence_strength=confidence_scores.get("evidence_strength", 0.3),
+                        reasoning_consistency=confidence_scores.get("reasoning_consistency", gemini_confidence),
+                        citation_count=len(evidence_for_confidence)
+                    )
+                    
+                    # Get recommended tests and management
+                    recommended_tests = get_recommended_tests(dx_name)
+                    initial_mgmt = get_initial_management(dx_name, "moderate")
+                    
+                    # Combine into next_steps
+                    next_steps_combined = []
+                    if recommended_tests:
+                        next_steps_combined.extend(recommended_tests)
+                    if initial_mgmt:
+                        next_steps_combined.extend(initial_mgmt)
+                    
+                    # Build DifferentialDiagnosis object
+                    final_diagnoses.append(DifferentialDiagnosis(
+                        diagnosis=dx_name,
+                        priority=idx,
+                        description=f"⚠️ GEMINI FALLBACK: Generated when no disease patterns matched. Supporting Features: {', '.join(gemini_dx.get('supporting_features', [])[:3])}",
+                        status="gemini-fallback",  # Special status
+                        severity=gemini_severity,
+                        risk_level="Orange/Warning" if gemini_severity == "critical" else "Blue/Low",
+                        source="gemini_fallback",  # Critical marker
+                        evidence=evidence_for_confidence,
+                        reasoning=f"🤖 GEMINI FALLBACK REASONING: {gemini_reasoning}",
+                        confidence=confidence,
+                        recommended_tests=recommended_tests,
+                        initial_management=initial_mgmt,
+                        next_steps=next_steps_combined
+                    ))
+                
+                logger.info(f"✅ Added {len(gemini_fallback_diagnoses)} Gemini fallback diagnoses to pipeline")
+                logger.info(f"📊 Final diagnosis count: {len(final_diagnoses)} (all from Gemini fallback)")
+            else:
+                logger.info(f"✅ {len(final_diagnoses)} diagnoses survived validation - Gemini fallback NOT needed")
+            
             # ===== BUILD FINAL RESPONSE =====
             elapsed = time.time() - start_time
             
@@ -1191,6 +1305,34 @@ OUTPUT (JSON only, no markdown):
             
             missing_info = identify_missing_information(normalized_data)
             
+            # 🔥 NEW: GENERATE ACTION PLAN using Gemini
+            logger.info("⚡ Generating clinical action plan using Gemini...")
+            
+            # Prepare diagnoses for action plan
+            diagnoses_for_actions = [{
+                "diagnosis": dx.diagnosis,
+                "severity": dx.severity,
+                "confidence": {"overall_confidence": dx.confidence.overall_confidence}
+            } for dx in final_diagnoses]
+            
+            # Call Gemini-powered action plan generator
+            action_plan = action_plan_generator.generate_action_plan(
+                clinical_note=extracted_text,
+                diagnoses=diagnoses_for_actions,
+                red_flags=red_flags
+            )
+            
+            # 🔍 DEBUG: Log generated actions
+            logger.info(f"⚡ Action Plan Generated:")
+            logger.info(f"   Immediate Actions: {len(action_plan.get('immediate', []))}")
+            logger.info(f"   Follow-up Actions: {len(action_plan.get('followUp', []))}")
+            
+            # 🔍 DEBUG: Show sample action to verify structure
+            if action_plan.get('immediate'):
+                logger.info(f"   Sample Immediate: {action_plan['immediate'][0]}")
+            if action_plan.get('followUp'):
+                logger.info(f"   Sample Follow-up: {action_plan['followUp'][0]}")
+            
             response = ClinicalNoteResponse(
                 request_id=request_id,
                 status=ProcessingStatus.COMPLETED,
@@ -1203,7 +1345,8 @@ OUTPUT (JSON only, no markdown):
                 warning_messages=[],
                 original_text=extracted_text,  # Include original/OCR extracted text
                 content=extracted_text,  # Alias for frontend compatibility
-                extracted_data=normalized_data  # Include structured data with atomic_symptoms
+                extracted_data=normalized_data,  # Include structured data with atomic_symptoms
+                action_plan=action_plan  # Include Gemini-generated action plan
             )
             
             # Audit logging (not yet fully implemented)

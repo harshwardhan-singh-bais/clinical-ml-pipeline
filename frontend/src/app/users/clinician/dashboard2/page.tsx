@@ -6,6 +6,7 @@ import InputHub from '@/components/inputHub/inputHub';
 import OutputSection from '@/components/outputSection/outputSection';
 import Footer from '@/components/footer/footer';
 import Sidebar from '@/components/sidebar/sidebar';
+import MedoraLoader from '@/components/medoraLoader/medoraLoader';
 import { api, type AnalysisResponse } from '@/lib/api';
 
 // Load the font
@@ -144,10 +145,23 @@ export default function HealthDashboard() {
             {hasAnalyzed ? (
               // --- VIEW 2: OUTPUT MODE ---
               <div className="w-full flex flex-col gap-6 animate-in fade-in zoom-in-95 duration-500">
-                <button onClick={handleReset} className="self-start text-sm font-semibold text-slate-500 hover:text-blue-600 flex items-center gap-2 mb-2 transition-colors">
-                  <i className="fa-solid fa-arrow-left"></i> Back to Input
-                </button>
-                <OutputSection isVisible={true} data={analysisData} />
+                {!isAnalyzing && (
+                  <button onClick={handleReset} className="self-start text-sm font-semibold text-slate-500 hover:text-blue-600 flex items-center gap-2 mb-2 transition-colors animate-enter fade-in-left">
+                    <i className="fa-solid fa-arrow-left"></i> Back to Input
+                  </button>
+                )}
+                {isAnalyzing ? (
+                  <div className="w-full bg-[rgba(255,255,255,0.18)] backdrop-blur-[0.9px] border border-white/60 shadow-xl rounded-3xl p-12 min-h-[600px] flex items-center justify-center animate-enter fade-in">
+                    <MedoraLoader />
+                  </div>
+                ) : (
+                  <OutputSection isVisible={true} data={analysisData} />
+                )}
+              </div>
+            ) : isAnalyzing ? (
+              // --- VIEW: ANALYZING ---
+              <div className="w-full bg-[rgba(255,255,255,0.18)] backdrop-blur-[0.9px] border border-white/60 shadow-xl rounded-3xl p-12 min-h-[600px] flex items-center justify-center animate-enter fade-in">
+                <MedoraLoader />
               </div>
             ) : (
               // --- VIEW 1: INPUT MODE ---
@@ -165,86 +179,110 @@ export default function HealthDashboard() {
                   />
                 </div>
 
-                {/* RIGHT: System Vitals */}
+                {/* RIGHT: Patient Safety & Progress */}
                 <div className="lg:col-span-4 flex flex-col gap-6">
-                  {/* Temperature Card */}
-                  <div className={`flex flex-1 min-h-[160px] flex-col justify-between p-6 transition-transform hover:-translate-y-1 ${glassStyle}`}>
-                    <div className="mb-2 flex items-start gap-4">
-                      <i className="fa-solid fa-temperature-half text-2xl text-[#ff7675] drop-shadow-sm"></i>
-                      <div>
-                        <h3 className="text-lg font-bold text-[#2d3436]">Temperature</h3>
-                        <span className="block text-sm text-[#636e72]">102/70</span>
+
+                  {/* Widget 1: Safety Profile */}
+                  <div className={`flex flex-1 min-h-[160px] flex-col justify-between p-5 transition-transform hover:-translate-y-1 ${glassStyle} animate-in fade-in zoom-in-95 duration-700 delay-200 fill-mode-backwards`}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#ff7675]/10 text-[#ff7675]">
+                          <i className="fa-solid fa-shield-virus text-lg"></i>
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-[#2d3436]">Safety</h3>
+                          <span className="text-xs font-bold text-[#ff7675] uppercase tracking-wide">High Alert</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="block text-xs font-bold text-[#636e72] uppercase">Blood</span>
+                        <span className="block text-xl font-bold text-[#2d3436] leading-none">O+</span>
                       </div>
                     </div>
-                    <div className="flex items-end justify-between">
-                      <div className="relative mr-4 h-12 flex-1 opacity-80">
-                        <svg viewBox="0 0 100 40" className="h-full w-full overflow-visible">
-                          <path
-                            d="M0,35 Q30,35 50,30 T100,10"
-                            fill="none"
-                            stroke="#2d3436"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            opacity="0.6"
-                          />
-                        </svg>
-                      </div>
-                      <div className="flex min-w-[90px] flex-col items-center justify-center rounded-[20px] bg-white px-4 py-2 shadow-sm">
-                        <span className="text-2xl font-bold leading-none text-[#2d3436]">37,1<span className="text-lg">°</span></span>
+                    <div className="mt-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#636e72] mb-2 block">Allergies</span>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="px-2 py-1 rounded-md bg-red-50 text-red-600 border border-red-100 text-xs font-bold flex items-center gap-1">
+                          <i className="fa-solid fa-circle-exclamation text-[10px]"></i> Penicillin
+                        </span>
+                        <span className="px-2 py-1 rounded-md bg-orange-50 text-orange-600 border border-orange-100 text-xs font-bold">
+                          Peanuts
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Heart Rate Card */}
-                  <div className={`flex flex-1 min-h-[160px] flex-col justify-between p-6 transition-transform hover:-translate-y-1 ${glassStyle}`}>
-                    <div className="mb-2 flex items-start gap-4">
-                      <i className="fa-solid fa-heart text-2xl text-[#d63031] drop-shadow-sm"></i>
-                      <div>
-                        <h3 className="text-lg font-bold text-[#2d3436]">Heart Rate</h3>
-                        <span className="block text-sm text-[#636e72]">124 bpm</span>
+                  {/* Widget 2: Active Meds */}
+                  <div className={`flex flex-1 min-h-[160px] flex-col justify-between p-5 transition-transform hover:-translate-y-1 ${glassStyle} animate-in fade-in zoom-in-95 duration-700 delay-300 fill-mode-backwards`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#74b9ff]/10 text-[#0984e3]">
+                          <i className="fa-solid fa-pills text-lg"></i>
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-[#2d3436]">Meds</h3>
+                          <span className="text-xs text-[#636e72]">Active</span>
+                        </div>
                       </div>
+                      <span className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-[#2d3436]">3</span>
                     </div>
-                    <div className="flex items-end justify-between">
-                      <div className="relative mr-4 h-12 flex-1 opacity-80">
-                        <svg viewBox="0 0 100 40" className="h-full w-full overflow-visible">
-                          <path
-                            d="M0,20 L15,20 L25,5 L35,35 L45,10 L55,20 L100,20"
-                            fill="none"
-                            stroke="#0984e3"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                          />
-                        </svg>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between p-1.5 rounded hover:bg-white/40 cursor-pointer">
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 w-1.5 rounded-full bg-green-400"></div>
+                          <span className="text-sm font-bold text-[#2d3436]">Lisinopril</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-[#636e72]">10mg</span>
                       </div>
-                      <div className="flex min-w-[90px] flex-col items-center justify-center rounded-[20px] bg-white px-4 py-2 shadow-sm">
-                        <span className="text-2xl font-bold leading-none text-[#2d3436]">124</span>
+                      <div className="flex items-center justify-between p-1.5 rounded hover:bg-white/40 cursor-pointer">
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 w-1.5 rounded-full bg-green-400"></div>
+                          <span className="text-sm font-bold text-[#2d3436]">Atorvastatin</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-[#636e72]">40mg</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Glucose Card */}
-                  <div className={`flex flex-1 min-h-[160px] flex-col justify-between p-6 transition-transform hover:-translate-y-1 ${glassStyle}`}>
-                    <div className="mb-2 flex items-start gap-4">
-                      <i className="fa-solid fa-viruses text-2xl text-[#e17055] drop-shadow-sm"></i>
+                  {/* Widget 3: Progress radial */}
+                  <div className={`flex flex-1 min-h-[160px] flex-col justify-between p-5 transition-transform hover:-translate-y-1 ${glassStyle} animate-in fade-in zoom-in-95 duration-700 delay-500 fill-mode-backwards`}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#55efc4]/10 text-[#00b894]">
+                        <i className="fa-solid fa-clipboard-check text-lg"></i>
+                      </div>
                       <div>
-                        <h3 className="text-lg font-bold text-[#2d3436]">Glucose</h3>
-                        <span className="block text-sm text-[#636e72]">182/ml</span>
+                        <h3 className="text-lg font-bold text-[#2d3436]">Progress</h3>
+                        <span className="text-xs text-[#636e72]">Daily Reports</span>
                       </div>
                     </div>
-                    <div className="flex items-end justify-between">
-                      <div className="relative mr-4 h-12 flex-1 opacity-80">
-                        <svg viewBox="0 0 100 40" className="h-full w-full overflow-visible">
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="relative h-20 w-20">
+                        <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 36 36">
                           <path
-                            d="M0,25 Q15,10 30,25 T60,25 T100,15"
+                            className="text-slate-200"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                             fill="none"
-                            stroke="#6c5ce7"
-                            strokeWidth="2.5"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                          />
+                          <path
+                            className="text-[#00b894] drop-shadow-sm"
+                            strokeDasharray="75, 100"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
                             strokeLinecap="round"
                           />
                         </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-xs font-bold text-[#2d3436]">75%</span>
+                        </div>
                       </div>
-                      <div className="flex min-w-[90px] flex-col items-center justify-center rounded-[20px] bg-white px-4 py-2 shadow-sm">
-                        <span className="text-2xl font-bold leading-none text-[#2d3436]">182</span>
+                      <div className="flex flex-col items-end">
+                        <span className="text-2xl font-bold text-[#2d3436]">9<span className="text-slate-400 text-lg">/12</span></span>
+                        <span className="text-[10px] font-bold text-[#00b894] bg-[#55efc4]/10 px-2 py-0.5 rounded-full">On Track</span>
+                        <span className="text-[10px] text-[#636e72] mt-1">3 Pending</span>
                       </div>
                     </div>
                   </div>

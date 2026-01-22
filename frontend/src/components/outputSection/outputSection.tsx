@@ -16,7 +16,10 @@ import {
   XCircle,
   Wind,
   Droplets,
-  Gauge
+  Gauge,
+  Zap,
+  Clock,
+  Calendar
 } from "lucide-react";
 import { AnalysisResponse } from "@/lib/api";
 
@@ -47,6 +50,7 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
   const [highlightedText, setHighlightedText] = useState<string[]>([]);
   const [selectedSymptom, setSelectedSymptom] = useState<any>(null);
   const [expandedEvidence, setExpandedEvidence] = useState<Record<number, boolean>>({});
+  const [checkedActions, setCheckedActions] = useState<Record<string, boolean>>({});
 
   if (!isVisible) return null;
 
@@ -124,6 +128,14 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
       .replace(/\n/g, '<br/>'); // Line breaks
   };
 
+  // Action Plan data from API
+  const actionPlan = data?.action_plan || {
+    immediate: [],
+    followUp: []
+  };
+
+  const totalActions = (actionPlan.immediate?.length || 0) + (actionPlan.followUp?.length || 0);
+
   // --- LOGIC ---
   const handleSymptomClick = (symptom: any) => {
     setSelectedSymptom(symptom);
@@ -132,6 +144,10 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
 
   const toggleEvidence = (id: number) => {
     setExpandedEvidence(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleAction = (id: string) => {
+    setCheckedActions(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   const highlightTextInNote = (text: string, keywords: string[]) => {
@@ -170,7 +186,8 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
             { id: 'summary', label: 'Clinical Summary', icon: FileText },
             { id: 'diagnosis', label: 'Differential Diagnosis', icon: Brain },
             { id: 'symptoms', label: 'Symptom Analysis', icon: Stethoscope },
-            { id: 'evidence', label: 'RAG Evidence', icon: Search }
+            { id: 'evidence', label: 'RAG Evidence', icon: Search },
+            { id: 'actionplan', label: 'Action Plan', icon: Zap }
           ].map(tab => (
             <button
               key={tab.id}
@@ -524,6 +541,130 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
               <p className="text-slate-500">No evidence available. Backend did not return diagnosis data.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* --- TAB: ACTION PLAN --- */}
+      {activeTab === 'actionplan' && (
+        <div className="space-y-6">
+
+          {/* Header */}
+          <div className={`${glassCard} p-6`}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+                <Zap className="w-7 h-7 text-amber-500" />
+                Clinical Action Plan
+              </h3>
+              <div className="text-right">
+                <div className="text-xs font-bold text-slate-400 uppercase">Completed</div>
+                <div className="text-2xl font-bold text-slate-800">
+                  {Object.values(checkedActions).filter(Boolean).length} / {totalActions}
+                </div>
+                <div className="w-24 h-2 bg-slate-200 rounded-full mt-1 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full transition-all duration-500"
+                    style={{
+                      width: `${totalActions > 0 ? (Object.values(checkedActions).filter(Boolean).length / totalActions) * 100 : 0}%`
+                    }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600">
+              AI-generated clinical actions based on the differential diagnosis. Check off items as you complete them.
+            </p>
+          </div>
+
+          {/* Immediate Actions (STAT) */}
+          <div className={`${glassCard} p-6`}>
+            <h4 className="font-semibold text-lg flex items-center gap-2 mb-4 text-red-700">
+              <Zap className="h-5 w-5 text-amber-600" /> Immediate Actions (STAT)
+            </h4>
+            {(actionPlan.immediate?.length ?? 0) > 0 ? (
+              <div className="space-y-3">
+                {actionPlan.immediate?.map((action: any) => (
+                  <label
+                    key={action.id}
+                    onClick={() => toggleAction(action.id)}
+                    className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${checkedActions[action.id]
+                      ? 'bg-white/30 border-white shadow-inner'
+                      : 'bg-white/10 border-white/30 hover:bg-white/20'
+                      }`}
+                  >
+                    {checkedActions[action.id] ? (
+                      <CheckCircle className="h-5 w-5 text-green-400 shrink-0" />
+                    ) : (
+                      <div className="h-5 w-5 rounded-full border-2 border-white/40 shrink-0" />
+                    )}
+                    <div className="flex-1">
+                      <div className="font-medium text-slate-800">{action.action}</div>
+                      <div className="text-sm opacity-80 text-slate-600 flex items-center gap-1 mt-1">
+                        <Clock className="w-3 h-3" />
+                        {action.time || 'STAT'}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-500 text-center py-8 bg-white/20 rounded-xl border border-white/30">
+                No immediate actions required at this time.
+              </p>
+            )}
+          </div>
+
+          {/* Follow-up Actions */}
+          <div className={`${glassCard} p-6`}>
+            <h4 className="font-semibold text-lg flex items-center gap-2 mb-4 text-blue-700">
+              <Calendar className="h-5 w-5 text-blue-600" /> Follow-up Actions
+            </h4>
+            {(actionPlan.followUp?.length ?? 0) > 0 ? (
+              <div className="space-y-3">
+                {actionPlan.followUp?.map((action: any) => (
+                  <label
+                    key={action.id}
+                    onClick={() => toggleAction(action.id)}
+                    className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${checkedActions[action.id]
+                      ? 'bg-white/30 border-white shadow-inner'
+                      : 'bg-white/10 border-white/30 hover:bg-white/20'
+                      }`}
+                  >
+                    {checkedActions[action.id] ? (
+                      <CheckCircle className="h-5 w-5 text-green-400 shrink-0" />
+                    ) : (
+                      <div className="h-5 w-5 rounded-full border-2 border-white/40 shrink-0" />
+                    )}
+                    <div className="flex-1">
+                      <div className="font-medium text-slate-800">{action.action}</div>
+                      <div className="text-sm opacity-80 text-slate-600 flex items-center gap-1 mt-1">
+                        <Calendar className="w-3 h-3" />
+                        {action.time || 'Within 24-48 hours'}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-500 text-center py-8 bg-white/20 rounded-xl border border-white/30">
+                No follow-up actions specified.
+              </p>
+            )}
+          </div>
+
+          {/* Progress Summary */}
+          <div className="mt-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 text-center">
+            <div className="text-4xl font-bold text-emerald-700">
+              {Object.values(checkedActions).filter(Boolean).length} / {totalActions}
+            </div>
+            <div className="text-sm font-semibold text-emerald-600 mt-1">Actions Completed</div>
+            <div className="mt-3 text-xs text-slate-600">
+              {totalActions > 0 && Object.values(checkedActions).filter(Boolean).length === totalActions ? (
+                <span className="font-bold text-green-600">✅ All actions completed!</span>
+              ) : (
+                <span>Keep going! {totalActions - Object.values(checkedActions).filter(Boolean).length} items remaining.</span>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

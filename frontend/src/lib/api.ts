@@ -116,6 +116,18 @@ export interface AnalysisResponse {
     processing_time_seconds?: number; // Backend puts this at root level
     original_text?: string;
     content?: string; // Backend might use this field name
+    action_plan?: {
+        immediate?: Array<{
+            id: string;
+            action: string;
+            time?: string;
+        }>;
+        followUp?: Array<{
+            id: string;
+            action: string;
+            time?: string;
+        }>;
+    };
     uncertainty?: {
         level: string;
         basis: string;
