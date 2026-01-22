@@ -6,7 +6,7 @@ Phase 17: API Response
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Literal, Any
+from typing import Optional, List, Literal, Any, Dict
 from datetime import datetime
 from enum import Enum
 from dataclasses import dataclass
@@ -371,6 +371,22 @@ class ClinicalNoteResponse(BaseModel):
     error_message: Optional[str] = Field(
         None,
         description="Error message if processing failed"
+    )
+    
+    # Original text fields (for displaying input clinical note in frontend)
+    original_text: Optional[str] = Field(
+        None,
+        description="Original clinical note text (including OCR extracted text from images/PDFs)"
+    )
+    content: Optional[str] = Field(
+        None,
+        description="Alias for original_text - original clinical note content"
+    )
+    
+    # Extracted structured data (includes atomic_symptoms with severity scores)
+    extracted_data: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Structured extracted data including atomic_symptoms with severity, demographics, etc."
     )
     
     class Config:

@@ -328,17 +328,11 @@ class ResponseFormatter:
         
         raw_symptoms = extracted_data.get("atomic_symptoms", [])
         
-        # Severity keywords for extraction
-        severity_keywords = {
-            9: ["severe", "worst", "excruciating", "unbearable"],
-            8: ["very painful", "intense"],
-            7: ["significant", "considerable"],
-            6: ["moderate to severe"],
-            5: ["moderate"],
-            4: ["mild to moderate"],
-            3: ["mild"],
-            2: ["slight", "minimal"]
-        }
+        # Import severity calculator
+        from services.severity_calculator import severity_calculator
+        
+        # Get clinical text for context-aware severity calculation
+        clinical_text = extracted_data.get("expanded_text", "")
         
         for idx, symptom in enumerate(raw_symptoms):
             if isinstance(symptom, dict):
@@ -358,35 +352,26 @@ class ResponseFormatter:
                 # Add ID if missing
                 if "id" not in enhanced:
                     enhanced["id"] = f"s{idx + 1}"
+                    # Mark first as chief complaint
+                    if idx == 0:
+                        enhanced["is_chief_complaint"] = True
                 
                 # Ensure status exists
                 if "status" not in enhanced:
                     enhanced["status"] = "present"
                 
-                # FIX: Extract or assign severity
-                if "severity" not in enhanced or enhanced["severity"] is None:
-                    # Try to extract from quality description
-                    quality = symptom.get("quality", "").lower()
-                    detail = symptom.get("detail", "").lower()
-                    combined_text = quality + " " + detail
-                    
-                    # Check for severity keywords
-                    severity_found = None
-                    for sev_level, keywords in severity_keywords.items():
-                        if any(kw in combined_text for kw in keywords):
-                            severity_found = sev_level
-                            break
-                    
-                    # Assign severity
-                    if severity_found:
-                        enhanced["severity"] = severity_found
-                    elif idx == 0:  # First symptom (chief complaint) is usually most severe
-                        enhanced["severity"] = 7
-                    else:
-                        enhanced["severity"] = 5  # Default moderate
+                # 🔥 NEW: Calculate severity using comprehensive severity calculator
+                severity_score = severity_calculator.calculate_severity(
+                    symptom=enhanced,
+                    clinical_text=clinical_text
+                )
+                enhanced["severity"] = severity_score
+                
+                logger.debug(f"Symptom '{enhanced.get('base_symptom')}': severity = {severity_score}/10")
                 
                 symptoms.append(enhanced)
         
+        logger.info(f"✅ Enhanced {len(symptoms)} symptoms with severity scores")
         return symptoms
     
     def _map_to_organ(self, symptom: str) -> str:

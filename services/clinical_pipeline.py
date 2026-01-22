@@ -26,10 +26,10 @@ from services.llm_service import GeminiService
 from services.confidence_scorer import ConfidenceScorer
 from services.validation import ValidationService
 from services.audit import AuditLogger
+from services.red_flags_detector import red_flags_detector  # NEW: Gemini-powered red flags
 from utils.clinical_intelligence import (
     get_recommended_tests,
     get_initial_management,
-    identify_red_flags,
     identify_missing_information
 )
 # ACCURACY UPGRADE MODULES
@@ -1162,18 +1162,32 @@ OUTPUT (JSON only, no markdown):
             # ===== BUILD FINAL RESPONSE =====
             elapsed = time.time() - start_time
             
-            # GENERATE CLINICAL ALERTS
-            red_flags = identify_red_flags(
-                [{"diagnosis": dx.diagnosis, "risk_level": dx.risk_level, 
-                  "confidence": {"overall_confidence": dx.confidence.overall_confidence}}
-                 for dx in final_diagnoses],
-                normalized_data
+            # 🔥 NEW: GENERATE CRITICAL RED FLAGS using Gemini
+            logger.info("🚨 Detecting critical red flags using Gemini...")
+            
+            # Prepare diagnoses for red flags detection
+            diagnoses_for_flags = [{
+                "diagnosis": dx.diagnosis, 
+                "risk_level": dx.risk_level,
+                "severity": dx.severity,
+                "confidence": {"overall_confidence": dx.confidence.overall_confidence}
+            } for dx in final_diagnoses]
+            
+            # Get vitals from normalized_data
+            vitals = normalized_data.get("vital_signs", normalized_data.get("vitals", {}))
+            
+            # Call Gemini-powered red flags detector
+            red_flags = red_flags_detector.detect_red_flags(
+                clinical_note=extracted_text,
+                diagnoses=diagnoses_for_flags,
+                symptoms=normalized_data.get("symptom_names", []),
+                vitals=vitals
             )
             
-            # 🔍 DEBUG: Log what identify_red_flags returned
-            logger.info(f"🔍 RED FLAGS RETURNED FROM identify_red_flags(): {red_flags}")
-            logger.info(f"🔍 RED FLAGS TYPE: {type(red_flags)}")
-            logger.info(f"🔍 RED FLAGS COUNT: {len(red_flags) if red_flags else 0}")
+            # 🔍 DEBUG: Log what red flags were detected
+            logger.info(f"🔍 RED FLAGS DETECTED: {len(red_flags)} critical alerts")
+            for idx, flag in enumerate(red_flags, 1):
+                logger.info(f"   {idx}. [{flag['severity'].upper()}] {flag['flag']}")
             
             missing_info = identify_missing_information(normalized_data)
             
@@ -1186,7 +1200,10 @@ OUTPUT (JSON only, no markdown):
                 processing_time_seconds=round(elapsed, 2),
                 red_flags=red_flags,
                 missing_information=missing_info,
-                warning_messages=[]
+                warning_messages=[],
+                original_text=extracted_text,  # Include original/OCR extracted text
+                content=extracted_text,  # Alias for frontend compatibility
+                extracted_data=normalized_data  # Include structured data with atomic_symptoms
             )
             
             # Audit logging (not yet fully implemented)
