@@ -21,7 +21,7 @@ import {
   Clock,
   Calendar
 } from "lucide-react";
-import { AnalysisResponse } from "@/lib/api";
+import { AnalysisResponse, AdditionalDataResponse } from "@/lib/api";
 
 // --- STYLES ---
 const glassCard = "bg-[rgba(255,255,255,0.18)] backdrop-blur-[0.9px] border border-[rgba(255,255,255,0.76)] shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-2xl";
@@ -33,10 +33,17 @@ const inactiveBtn = "bg-white/40 text-slate-600 hover:bg-white hover:text-[#00f2
 interface OutputSectionProps {
   isVisible?: boolean;
   data?: AnalysisResponse | null;
+  additionalData?: AdditionalDataResponse | null;
+  isFetchingAdditional?: boolean;
 }
 
 
-const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) => {
+const OutputSection = ({
+  isVisible = true,
+  data = null,
+  additionalData = null,
+  isFetchingAdditional = false
+}: OutputSectionProps) => {
   // 🔍 DEBUG: Log the API response to check if severity exists
   console.log("🔍 Full API Response:", data);
   console.log("🔍 Differential Diagnoses:", data?.differential_diagnoses);
@@ -51,6 +58,7 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
   const [selectedSymptom, setSelectedSymptom] = useState<any>(null);
   const [expandedEvidence, setExpandedEvidence] = useState<Record<number, boolean>>({});
   const [checkedActions, setCheckedActions] = useState<Record<string, boolean>>({});
+  const [analysisVideo, setAnalysisVideo] = useState<string | null>(null);
 
   if (!isVisible) return null;
 
@@ -73,12 +81,14 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
       (data?.metadata?.processing_time_seconds ? `${data.metadata.processing_time_seconds.toFixed(1)}s` :
         data?.processing_time_seconds ? `${data.processing_time_seconds.toFixed(1)}s` : "N/A"),
     model: data?.metadata?.model || data?.metadata?.model_version || "Gemini 1.5 Flash (RAG)",
-    confidence: data?.metadata?.confidence || "N/A"
+    confidence: (data as any)?.total_evidence_retrieved !== undefined ? `${(data as any).total_evidence_retrieved} Evidence Matches` : "N/A"
   };
 
   // AI Summary - Backend returns 'summary' not 'clinical_summary'!
   const summaryText = data?.clinical_summary?.summary_text || data?.summary?.summary_text || "No summary available. Backend did not return analysis.";
-  const redFlags = data?.clinical_summary?.red_flags || data?.red_flags || [];
+
+  // Use additionalData for red flags if available, otherwise fallback to data
+  const redFlags = additionalData?.red_flags || data?.clinical_summary?.red_flags || data?.red_flags || [];
 
   // 🔍 DEBUG: Check red_flags structure
   console.log("🔍 Red Flags from API:", redFlags);
@@ -129,17 +139,65 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
   };
 
   // Action Plan data from API
-  const actionPlan = data?.action_plan || {
+  const actionPlan = additionalData?.action_plan || data?.action_plan || {
     immediate: [],
     followUp: []
   };
 
   const totalActions = (actionPlan.immediate?.length || 0) + (actionPlan.followUp?.length || 0);
 
+  // --- VIDEO LOGIC ---
+  const videoMapping = [
+    { keywords: ["axial skeleton", "skeleton", "spine", "bone"], filename: "Axial Skeleton.mp4" },
+    { keywords: ["brain", "neurological", "head", "headache", "migraine", "cerebral", "mental"], filename: "Brain.mp4" },
+    { keywords: ["kidney", "renal", "dialysis", "nephrology"], filename: "Kidney.mp4" },
+    { keywords: ["left forearm", "left arm", "forearm"], filename: "Left Forearm.mp4" },
+    { keywords: ["lungs", "respiratory", "chest pain", "pneumonia", "asthma", "breath", "cough", "breathing"], filename: "Lungs.mp4" },
+    { keywords: ["pancreas", "pancreatic", "insulin", "diabetes"], filename: "Pancreas.mp4" },
+    { keywords: ["right leg", "leg pain", "right knee"], filename: "Right Leg.mp4" },
+    { keywords: ["vascular", "vein", "artery", "blood flow", "circulatory", "vascular network", "heart", "cardio"], filename: "Vascular Network.mp4" },
+    { keywords: ["gastric", "stomach", "gastritis", "gastric function", "abdominal"], filename: "gastric function.mp4" },
+    { keywords: ["gut", "intestine", "bowel", "gut health", "digestion"], filename: "gut health.mp4" },
+    { keywords: ["wrist", "wrist pain", "carpal"], filename: "wrist pain.mp4" }
+  ];
+
+  React.useEffect(() => {
+    if (!data) return;
+
+    // Combine all text to search for initial match
+    const allText = `${summaryText} ${differentialDiagnoses.map((d: any) => d.condition || d.diagnosis).join(" ")} ${originalText}`.toLowerCase();
+
+    // Find the first matching video
+    const match = videoMapping.find(v =>
+      v.keywords.some(keyword => allText.includes(keyword.toLowerCase()))
+    );
+
+    if (match) {
+      console.log("🎥 Initial video match:", match.filename);
+      setAnalysisVideo(`/videos/${match.filename}`);
+    } else {
+      setAnalysisVideo(null);
+    }
+  }, [data, summaryText, differentialDiagnoses, originalText]);
+
   // --- LOGIC ---
   const handleSymptomClick = (symptom: any) => {
     setSelectedSymptom(symptom);
     setHighlightedText(symptom.keywords || []);
+
+    // Try to find a more specific video for this symptom
+    const organ = (symptom.organ || "").toLowerCase();
+    const symptomText = (symptom.symptom || symptom.base_symptom || "").toLowerCase();
+
+    const specificMatch = videoMapping.find(v =>
+      v.keywords.some(k => organ.includes(k)) ||
+      v.keywords.some(k => symptomText.includes(k))
+    );
+
+    if (specificMatch) {
+      console.log("🎥 Symptom-specific video match:", specificMatch.filename);
+      setAnalysisVideo(`/videos/${specificMatch.filename}`);
+    }
   };
 
   const toggleEvidence = (id: number) => {
@@ -170,7 +228,7 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
             <Activity className="w-6 h-6 text-[#00f2fe]" /> GenAI Clinical Analysis
           </h2>
           <p className="text-slate-500 text-sm font-medium ml-8">
-            Model: {metadata.model} • Time: {metadata.time}
+            Model: {metadata.model} • Time: {metadata.time} • Confidence: {metadata.confidence}
           </p>
         </div>
         <div className="text-right hidden md:block">
@@ -246,8 +304,13 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
                 <AlertTriangle className="w-5 h-5 text-red-600 animate-pulse" /> Critical Red Flags
               </h3>
               <div className="space-y-3">
-                {redFlags.length > 0 ? (
-                  redFlags.map((flag, idx) => (
+                {isFetchingAdditional ? (
+                  <div className="flex flex-col items-center justify-center py-6 gap-3">
+                    <div className="w-8 h-8 border-4 border-red-200 border-t-red-600 rounded-full animate-spin"></div>
+                    <p className="text-xs font-bold text-red-700 animate-pulse uppercase tracking-wider">Analyzing risk profile...</p>
+                  </div>
+                ) : redFlags.length > 0 ? (
+                  redFlags.map((flag: any, idx: number) => (
                     <div
                       key={idx}
                       className="bg-white/60 border border-red-200 rounded-xl p-3 cursor-pointer hover:bg-white hover:shadow-md transition-all flex items-start gap-3 group"
@@ -306,43 +369,10 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
                         <div>
                           <h3 className="text-xl font-bold text-slate-800">{diag.condition || diag.diagnosis || "Unknown Diagnosis"}</h3>
                           <div className="flex gap-2 mt-1">
-                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${diag.severity === 'critical' ? 'bg-red-100 text-red-600 border-red-200' : 'bg-orange-100 text-orange-600 border-orange-200'}`}>
-                              {diag.severity || 'moderate'}
-                            </span>
                             <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border bg-purple-50 text-purple-600 border-purple-100">
                               {diag.source || 'RAG'}
                             </span>
                           </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs font-bold text-slate-400 uppercase">Confidence</div>
-                        <div className="text-2xl font-bold text-slate-800">
-                          {(() => {
-                            // confidence is an object with overall_confidence field
-                            const confObj = diag.confidence;
-                            const conf = confObj?.overall_confidence || diag.confidence_score || 0;
-                            // Convert to percentage (0-1 scale → 0-100)
-                            const percentage = conf > 1 ? conf : Math.round(conf * 100);
-                            return `${percentage}%`;
-                          })()}
-                        </div>
-                        <div className="w-24 h-1.5 bg-slate-200 rounded-full mt-1 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${(() => {
-                              const confObj = diag.confidence;
-                              const conf = confObj?.overall_confidence || diag.confidence_score || 0;
-                              const percentage = conf > 1 ? conf : conf * 100;
-                              return percentage > 80 ? 'bg-green-500' : 'bg-orange-500';
-                            })()}`}
-                            style={{
-                              width: `${(() => {
-                                const confObj = diag.confidence;
-                                const conf = confObj?.overall_confidence || diag.confidence_score || 0;
-                                return conf > 1 ? conf : Math.round(conf * 100);
-                              })()}%`
-                            }}
-                          ></div>
                         </div>
                       </div>
                     </div>
@@ -418,7 +448,9 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
         </div>
       )}
 
-      {/* --- TAB: SYMPTOMS --- */}
+      {/* --- TAB: SYSTEM ANALYSIS (VIDEO REMOVED PER REQUEST) --- */}
+
+      {/* --- TAB: SYMPTOMS --- --- REDACTED FOR BREVITY --- */}
       {activeTab === 'symptoms' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
@@ -478,15 +510,28 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
                     <span className="text-xs font-bold text-[#4facfe] uppercase block mb-1">Selected Focus</span>
                     <span className="text-lg font-bold text-[#00f2fe]">{selectedSymptom.symptom || selectedSymptom.base_symptom}</span>
                   </div>
-                  <div className="relative w-full aspect-square bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-center">
-                    <img
-                      src={organImages[selectedSymptom.organ] || organImages.general}
-                      alt={selectedSymptom.organ}
-                      className="max-h-full max-w-full object-contain drop-shadow-xl"
-                    />
+                  <div className="relative w-full aspect-square bg-black rounded-2xl border border-slate-200 overflow-hidden flex items-center justify-center">
+                    {analysisVideo ? (
+                      <video
+                        key={analysisVideo} // Force re-render on video change
+                        src={analysisVideo}
+                        autoPlay
+                        loop
+                        muted
+                        className="w-full h-full object-cover shadow-2xl"
+                      />
+                    ) : (
+                      <img
+                        src={organImages[selectedSymptom.organ] || organImages.general}
+                        alt={selectedSymptom.organ}
+                        className="max-h-full max-w-full object-contain drop-shadow-xl"
+                      />
+                    )}
                   </div>
                   <p className="mt-4 text-sm text-slate-500 font-medium">
-                    Visualizing pathology in the <span className="capitalize font-bold text-slate-700">{selectedSymptom.organ || 'general'}</span> system.
+                    {analysisVideo
+                      ? "Dynamic system visualization based on selected symptom."
+                      : `Visualizing pathology in the ${selectedSymptom.organ || 'general'} system.`}
                   </p>
                 </div>
               ) : (
@@ -548,122 +593,173 @@ const OutputSection = ({ isVisible = true, data = null }: OutputSectionProps) =>
       {activeTab === 'actionplan' && (
         <div className="space-y-6">
 
-          {/* Header */}
-          <div className={`${glassCard} p-6`}>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-                <Zap className="w-7 h-7 text-amber-500" />
-                Clinical Action Plan
-              </h3>
-              <div className="text-right">
-                <div className="text-xs font-bold text-slate-400 uppercase">Completed</div>
-                <div className="text-2xl font-bold text-slate-800">
-                  {Object.values(checkedActions).filter(Boolean).length} / {totalActions}
+          {/* Header & Progress Card */}
+          <div className={`${glassCard} p-6 border-l-4 border-l-emerald-500`}>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-100">
+                  <Zap className="w-8 h-8 fill-emerald-500/20" />
                 </div>
-                <div className="w-24 h-2 bg-slate-200 rounded-full mt-1 overflow-hidden">
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-800 tracking-tight">Clinical Action Plan</h3>
+                  <p className="text-sm text-slate-500 font-medium">AI-synthesized pathways for patient recovery</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl font-black text-slate-800">
+                    {Object.values(checkedActions).filter(Boolean).length}
+                    <span className="text-slate-300 mx-1">/</span>
+                    {totalActions}
+                  </span>
+                  <div className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider rounded-full border border-emerald-100 italic">
+                    {totalActions > 0 && Math.round((Object.values(checkedActions).filter(Boolean).length / totalActions) * 100)}% Complete
+                  </div>
+                </div>
+                <div className="w-48 h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
                   <div
-                    className="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full transition-all duration-500"
-                    style={{
-                      width: `${totalActions > 0 ? (Object.values(checkedActions).filter(Boolean).length / totalActions) * 100 : 0}%`
-                    }}
-                  ></div>
+                    className="h-full bg-gradient-to-r from-emerald-400 to-green-500 transition-all duration-700 ease-out shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+                    style={{ width: `${totalActions > 0 ? (Object.values(checkedActions).filter(Boolean).length / totalActions) * 100 : 0}%` }}
+                  />
                 </div>
               </div>
             </div>
-            <p className="text-sm text-slate-600">
-              AI-generated clinical actions based on the differential diagnosis. Check off items as you complete them.
-            </p>
           </div>
 
-          {/* Immediate Actions (STAT) */}
-          <div className={`${glassCard} p-6`}>
-            <h4 className="font-semibold text-lg flex items-center gap-2 mb-4 text-red-700">
-              <Zap className="h-5 w-5 text-amber-600" /> Immediate Actions (STAT)
-            </h4>
-            {(actionPlan.immediate?.length ?? 0) > 0 ? (
-              <div className="space-y-3">
-                {actionPlan.immediate?.map((action: any) => (
-                  <label
-                    key={action.id}
-                    onClick={() => toggleAction(action.id)}
-                    className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${checkedActions[action.id]
-                      ? 'bg-white/30 border-white shadow-inner'
-                      : 'bg-white/10 border-white/30 hover:bg-white/20'
-                      }`}
-                  >
-                    {checkedActions[action.id] ? (
-                      <CheckCircle className="h-5 w-5 text-green-400 shrink-0" />
-                    ) : (
-                      <div className="h-5 w-5 rounded-full border-2 border-white/40 shrink-0" />
-                    )}
-                    <div className="flex-1">
-                      <div className="font-medium text-slate-800">{action.action}</div>
-                      <div className="text-sm opacity-80 text-slate-600 flex items-center gap-1 mt-1">
-                        <Clock className="w-3 h-3" />
-                        {action.time || 'STAT'}
+          {/* Main Action Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {/* Column 1: Immediate Actions */}
+            <div className={`${glassCard} overflow-hidden border-t-4 border-t-red-500 h-full`}>
+              <div className="p-5 border-b border-white/40 bg-red-50/20">
+                <h4 className="font-bold text-red-700 flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 animate-pulse" />
+                  Immediate Actions (STAT)
+                </h4>
+              </div>
+
+              <div className="p-6">
+                {isFetchingAdditional ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-4">
+                    <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
+                    <p className="text-sm font-bold text-red-600 animate-pulse uppercase tracking-widest">Synthesizing STAT items...</p>
+                  </div>
+                ) : (actionPlan.immediate?.length ?? 0) > 0 ? (
+                  <div className="space-y-4">
+                    {actionPlan.immediate?.map((action: any) => (
+                      <div
+                        key={action.id}
+                        onClick={() => toggleAction(action.id)}
+                        className={`group relative p-4 rounded-2xl border transition-all duration-300 cursor-pointer overflow-hidden ${checkedActions[action.id]
+                          ? 'bg-slate-50/50 border-slate-200 ring-1 ring-slate-100'
+                          : 'bg-white border-slate-100 hover:border-red-200 hover:shadow-lg hover:shadow-red-500/5'
+                          }`}
+                      >
+                        <div className="flex gap-4 relative z-10">
+                          <div className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300 ${checkedActions[action.id]
+                            ? 'bg-emerald-500 border-emerald-500'
+                            : 'border-slate-200 group-hover:border-red-400'
+                            }`}>
+                            {checkedActions[action.id] && <CheckCircle className="w-4 h-4 text-white" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className={`font-bold transition-all duration-300 ${checkedActions[action.id] ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                              {action.action}
+                            </div>
+                            <div className="flex items-center gap-3 mt-2">
+                              <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-tighter text-red-500 bg-red-50 px-2 py-0.5 rounded border border-red-100">
+                                <Clock className="w-2.5 h-2.5" /> {action.time || 'STAT'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-12 flex flex-col items-center text-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-300">
+                      <CheckCircle className="w-6 h-6" />
                     </div>
-                  </label>
-                ))}
+                    <p className="text-sm text-slate-400 font-medium italic">No immediate actions required.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Column 2: Follow-up Actions */}
+            <div className={`${glassCard} overflow-hidden border-t-4 border-t-blue-500 h-full`}>
+              <div className="p-5 border-b border-white/40 bg-blue-50/20">
+                <h4 className="font-bold text-blue-700 flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Follow-up Actions
+                </h4>
+              </div>
+
+              <div className="p-6">
+                {isFetchingAdditional ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-4">
+                    <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin"></div>
+                    <p className="text-sm font-bold text-blue-600 animate-pulse uppercase tracking-widest">Building follow-up pathway...</p>
+                  </div>
+                ) : (actionPlan.followUp?.length ?? 0) > 0 ? (
+                  <div className="space-y-4">
+                    {actionPlan.followUp?.map((action: any) => (
+                      <div
+                        key={action.id}
+                        onClick={() => toggleAction(action.id)}
+                        className={`group relative p-4 rounded-2xl border transition-all duration-300 cursor-pointer overflow-hidden ${checkedActions[action.id]
+                          ? 'bg-slate-50/50 border-slate-200 ring-1 ring-slate-100'
+                          : 'bg-white border-slate-100 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/5'
+                          }`}
+                      >
+                        <div className="flex gap-4 relative z-10">
+                          <div className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300 ${checkedActions[action.id]
+                            ? 'bg-emerald-500 border-emerald-500'
+                            : 'border-slate-200 group-hover:border-blue-400'
+                            }`}>
+                            {checkedActions[action.id] && <CheckCircle className="w-4 h-4 text-white" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className={`font-bold transition-all duration-300 ${checkedActions[action.id] ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                              {action.action}
+                            </div>
+                            <div className="flex items-center gap-3 mt-2">
+                              <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-tighter text-blue-500 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                                <Calendar className="w-2.5 h-2.5" /> {action.time || 'Next 24-48h'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-12 flex flex-col items-center text-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-300">
+                      <CheckCircle className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm text-slate-400 font-medium italic">No follow-up actions specified.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Completion Status Footer */}
+          <div className="mt-8 flex items-center justify-center">
+            {totalActions > 0 && Object.values(checkedActions).filter(Boolean).length === totalActions ? (
+              <div className="animate-bounce inline-flex items-center gap-3 px-6 py-4 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-200 shadow-xl shadow-emerald-500/10">
+                <CheckCircle className="w-6 h-6" />
+                <span className="text-lg font-black italic">CLINICAL PROTOCOL FULLY EXECUTED</span>
               </div>
             ) : (
-              <p className="text-slate-500 text-center py-8 bg-white/20 rounded-xl border border-white/30">
-                No immediate actions required at this time.
-              </p>
-            )}
-          </div>
-
-          {/* Follow-up Actions */}
-          <div className={`${glassCard} p-6`}>
-            <h4 className="font-semibold text-lg flex items-center gap-2 mb-4 text-blue-700">
-              <Calendar className="h-5 w-5 text-blue-600" /> Follow-up Actions
-            </h4>
-            {(actionPlan.followUp?.length ?? 0) > 0 ? (
-              <div className="space-y-3">
-                {actionPlan.followUp?.map((action: any) => (
-                  <label
-                    key={action.id}
-                    onClick={() => toggleAction(action.id)}
-                    className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${checkedActions[action.id]
-                      ? 'bg-white/30 border-white shadow-inner'
-                      : 'bg-white/10 border-white/30 hover:bg-white/20'
-                      }`}
-                  >
-                    {checkedActions[action.id] ? (
-                      <CheckCircle className="h-5 w-5 text-green-400 shrink-0" />
-                    ) : (
-                      <div className="h-5 w-5 rounded-full border-2 border-white/40 shrink-0" />
-                    )}
-                    <div className="flex-1">
-                      <div className="font-medium text-slate-800">{action.action}</div>
-                      <div className="text-sm opacity-80 text-slate-600 flex items-center gap-1 mt-1">
-                        <Calendar className="w-3 h-3" />
-                        {action.time || 'Within 24-48 hours'}
-                      </div>
-                    </div>
-                  </label>
-                ))}
+              <div className="text-slate-400 text-sm font-medium italic flex items-center gap-2 opacity-60">
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-pulse" />
+                {totalActions - Object.values(checkedActions).filter(Boolean).length} clinical objectives remaining
               </div>
-            ) : (
-              <p className="text-slate-500 text-center py-8 bg-white/20 rounded-xl border border-white/30">
-                No follow-up actions specified.
-              </p>
             )}
-          </div>
-
-          {/* Progress Summary */}
-          <div className="mt-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 text-center">
-            <div className="text-4xl font-bold text-emerald-700">
-              {Object.values(checkedActions).filter(Boolean).length} / {totalActions}
-            </div>
-            <div className="text-sm font-semibold text-emerald-600 mt-1">Actions Completed</div>
-            <div className="mt-3 text-xs text-slate-600">
-              {totalActions > 0 && Object.values(checkedActions).filter(Boolean).length === totalActions ? (
-                <span className="font-bold text-green-600">✅ All actions completed!</span>
-              ) : (
-                <span>Keep going! {totalActions - Object.values(checkedActions).filter(Boolean).length} items remaining.</span>
-              )}
-            </div>
           </div>
         </div>
       )}

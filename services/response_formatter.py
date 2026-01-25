@@ -22,12 +22,13 @@ class ResponseFormatter:
             "general": ["fever", "fatigue", "weakness", "malaise", "diaphoresis"]
         }
     
-    def format_response(self, response: ClinicalNoteResponse) -> Dict[str, Any]:
+    def format_response(self, response: ClinicalNoteResponse, exclude_additional_info: bool = False) -> Dict[str, Any]:
         """
         Enhance response with frontend-expected fields
         
         Args:
             response: Raw backend response
+            exclude_additional_info: If True, skips Red Flags and Action Plan (Call #1)
             
         Returns:
             Enhanced response with all frontend fields
@@ -43,25 +44,30 @@ class ResponseFormatter:
                 )
             
             # Ensure clinical_summary has red_flags (uses diagnoses)
-            if "clinical_summary" in formatted:
+            if "clinical_summary" in formatted and not exclude_additional_info:
                 formatted["clinical_summary"] = self._enhance_clinical_summary(
                     formatted["clinical_summary"],
                     formatted.get("extracted_data", {}),
                     formatted.get("differential_diagnoses", [])
                 )
+            elif "clinical_summary" in formatted and exclude_additional_info:
+                # Ensure it's present but empty
+                formatted["clinical_summary"]["red_flags"] = []
             
             # NEW: Convert root-level red_flags from strings to objects
-            if "red_flags" in formatted and formatted["red_flags"]:
+            if "red_flags" in formatted and formatted["red_flags"] and not exclude_additional_info:
                 # If red_flags are strings (from identify_red_flags()), convert to objects
                 if isinstance(formatted["red_flags"], list) and len(formatted["red_flags"]) > 0:
                     if isinstance(formatted["red_flags"][0], str):
                         formatted["red_flags"] = self._convert_red_flags_to_objects(formatted["red_flags"])
             
             # Add atomic_symptoms with organ mapping
-            if "extracted_data" in formatted:
+            if "extracted_data" in formatted and formatted["extracted_data"]:
                 formatted["extracted_data"]["atomic_symptoms"] = self._create_atomic_symptoms(
                     formatted["extracted_data"]
                 )
+            elif "extracted_data" in formatted and formatted["extracted_data"] is None:
+                formatted["extracted_data"] = {"atomic_symptoms": [], "symptom_names": []}
             
             # Add metadata if missing
             if "metadata" not in formatted:
@@ -94,7 +100,14 @@ class ResponseFormatter:
                 formatted["extracted_vitals"] = enhanced_fields.get("extracted_vitals", [])
                 formatted["risk_scores"] = enhanced_fields.get("risk_scores", [])
                 formatted["key_entities"] = enhanced_fields.get("key_entities", {})
-                formatted["action_plan"] = enhanced_fields.get("action_plan", {})
+                
+                # Action plan is now partially Gemini-based, so we skip the heuristic one in Call #1 
+                # if we want the user to wait for the real one.
+                if not exclude_additional_info:
+                    formatted["action_plan"] = enhanced_fields.get("action_plan", {})
+                else:
+                    formatted["action_plan"] = {"immediate": [], "followUp": []}
+                    
                 formatted["missing_data"] = enhanced_fields.get("missing_data", [])
             
             return formatted
@@ -217,7 +230,11 @@ class ResponseFormatter:
                 enhanced_diag["id"] = idx + 1
             
             # FIX: Use REAL confidence scores, calculate defaults mathematically
-            confidence_score = diag.get("confidence_score", diag.get("match_score", 0))
+            confidence = diag.get("confidence")
+            if isinstance(confidence, dict):
+                confidence_score = confidence.get("overall_confidence")
+            else:
+                confidence_score = diag.get("confidence_score", diag.get("match_score"))
             
             # Handle None or invalid values - use decay function instead of hardcoding
             if confidence_score is None or confidence_score == 0 or confidence_score < 0.01:
@@ -324,6 +341,9 @@ class ResponseFormatter:
     
     def _create_atomic_symptoms(self, extracted_data: Dict) -> List[Dict]:
         """Create atomic symptoms with organ mapping and severity"""
+        if not extracted_data:
+            return []
+            
         symptoms = []
         
         raw_symptoms = extracted_data.get("atomic_symptoms", [])
@@ -518,7 +538,16 @@ def extract_enhanced_fields(clinical_text: str, extracted_data: Dict) -> Dict:
     # Simple heuristic-based risk scoring
     symptoms = extracted_data.get("atomic_symptoms", [])
     demographics = extracted_data.get("demographics", {})
-    age = demographics.get("age", 50)
+    
+    # Safely get age
+    age_raw = demographics.get("age")
+    try:
+        if age_raw is not None:
+            age = int(age_raw)
+        else:
+            age = 0 # Default to 0 for risk score if unknown
+    except (ValueError, TypeError):
+        age = 0
     
     # Check for cardiac risk factors
     has_chest_pain = any("chest pain" in str(s.get("base_symptom", "")).lower() for s in symptoms if isinstance(s, dict))
@@ -528,9 +557,9 @@ def extract_enhanced_fields(clinical_text: str, extracted_data: Dict) -> Dict:
     if has_chest_pain:
         # HEART Score calculation (simplified)
         heart_score = 0
-        if age > 65:
+        if age and age > 65:
             heart_score += 2
-        elif age > 45:
+        elif age and age > 45:
             heart_score += 1
         if has_diaphoresis:
             heart_score += 1

@@ -1,10 +1,10 @@
 """
-Gemini LLM Service with LangChain
+Model LLM Service with LangChain
 Phase 12: Prompt Construction (Critical Phase)
-Phase 13: LLM Synthesis (Gemini)
+Phase 13: LLM Synthesis (Model)
 
 CRITICAL RULES:
-- Gemini for text synthesis ONLY (not embeddings)
+- Model for text synthesis ONLY (not embeddings)
 - Facts ONLY from PMC evidence
 - Reasoning style from MedCaseReasoning patterns
 - Citations MANDATORY
@@ -22,9 +22,9 @@ from config.settings import settings
 logger = logging.getLogger(__name__)
 
 
-class GeminiService:
+class ModelService:
     """
-    Gemini LLM service for clinical synthesis.
+    Model LLM service for clinical synthesis.
     
     Phase 12: Construct prompts with PMC evidence + reasoning patterns
     Phase 13: Generate summary + differential diagnoses
@@ -33,14 +33,14 @@ class GeminiService:
     """
     
     def __init__(self):
-        """Initialize Gemini service."""
-        # Configure Gemini API
+        """Initialize Model service."""
+        # Configure Model API
         genai.configure(api_key=settings.GEMINI_API_KEY)
         
-        # Use native Gemini SDK directly (no LangChain retries)
+        # Use native Model SDK directly (no LangChain retries)
         self.native_model = genai.GenerativeModel(settings.GEMINI_MODEL)
         
-        # LangChain Gemini integration (kept for compatibility, but prefer native)
+        # LangChain Model integration (kept for compatibility, but prefer native)
         self.llm = ChatGoogleGenerativeAI(
             model=settings.GEMINI_MODEL,
             google_api_key=settings.GEMINI_API_KEY,
@@ -54,7 +54,7 @@ class GeminiService:
         self.language_patterns = self._load_clinical_language_patterns()
         self.robustness_patterns = self._load_robustness_patterns()
         
-        logger.info(f"GeminiService initialized with model: {settings.GEMINI_MODEL}")
+        logger.info(f"ModelService initialized with model: {settings.GEMINI_MODEL}")
     
     def _load_reasoning_patterns(self) -> str:
         """
@@ -238,7 +238,7 @@ ROBUSTNESS PATTERNS (Augmented Notes-Derived):
     
     def build_system_prompt(self) -> str:
         """
-        Build system prompt for Gemini.
+        Build system prompt for Model.
         
         Phase 12: Prompt Construction (System Role)
         
@@ -360,7 +360,7 @@ Remember:
         """
         Generate clinical summary and differential diagnoses.
         
-        Phase 13: LLM Synthesis (Gemini)
+        Phase 13: LLM Synthesis (Model)
         
         Args:
             patient_text: Patient clinical note
@@ -370,7 +370,7 @@ Remember:
         Returns:
             Dictionary with summary and diagnoses
         """
-        logger.info("Generating clinical analysis with Gemini")
+        logger.info("Generating clinical analysis with Model")
         
         # Build prompts
         system_prompt = self.build_system_prompt()
@@ -384,14 +384,14 @@ Remember:
         full_prompt = f"{system_prompt}\n\n{user_prompt}"
         
         try:
-            # Call Gemini via LangChain
-            logger.debug("Calling Gemini LLM...")
+            # Call Model via LangChain
+            logger.debug("Calling Model LLM...")
             response = self.llm.invoke(full_prompt)
             
             # Extract content
             response_text = response.content if hasattr(response, 'content') else str(response)
             
-            logger.info(f"Received response from Gemini ({len(response_text)} chars)")
+            logger.info(f"Received response from Model ({len(response_text)} chars)")
             
             # Parse JSON response
             analysis = self._parse_llm_response(response_text)
@@ -546,10 +546,10 @@ Remember:
         full_prompt = f"{system_prompt}\n\n{user_prompt}"
         
         try:
-            logger.info("=== GEMINI LLM CALL STARTING ===")
-            logger.info(f"Calling Gemini for evidence-grounded synthesis...")
+            logger.info("=== MODEL LLM CALL STARTING ===")
+            logger.info(f"Calling Model for evidence-grounded synthesis...")
             
-            # Use native Gemini SDK (no LangChain retries)
+            # Use native Model SDK (no LangChain retries)
             try:
                 generation_config = {
                     'temperature': 0.1,
@@ -564,7 +564,7 @@ Remember:
                 # ANY error (quota, timeout, etc.) - use fallback immediately
                 error_str = str(invoke_error)
                 if '429' in error_str or 'quota' in error_str or 'ResourceExhausted' in error_str:
-                    logger.warning("Gemini API quota exceeded - using fallback synthesis")
+                    logger.warning("Model API quota exceeded - using fallback synthesis")
                 else:
                     logger.warning(f"LLM invocation failed: {str(invoke_error)[:100]} - using fallback synthesis")
                 
@@ -573,7 +573,7 @@ Remember:
             
             response_text = response_text
             
-            logger.info(f"=== GEMINI LLM CALL SUCCESS ===")
+            logger.info(f"=== MODEL LLM CALL SUCCESS ===")
             logger.info(f"Received evidence-grounded analysis ({len(response_text)} chars)")
             logger.debug(f"Response preview: {response_text[:200]}...")
             

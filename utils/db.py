@@ -29,7 +29,7 @@ class SupabaseVectorStore:
     
     # Table and schema constants
     TABLE_NAME = "statpearls_embeddings"
-    EMBEDDING_DIM = 768  # Gemini embedding dimension
+    EMBEDDING_DIM = 768  # Model embedding dimension
     
     def __init__(self):
         """Initialize Supabase client."""
@@ -54,7 +54,7 @@ class SupabaseVectorStore:
         
         Table schema:
         - id: UUID primary key
-        - embedding: VECTOR(768) - Gemini embeddings
+        - embedding: VECTOR(768) - Model embeddings
         - content: TEXT - chunk text
         - title: TEXT - chunk title
         - chunk_id: TEXT - unique chunk identifier

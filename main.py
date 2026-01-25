@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
+from typing import Dict, List, Any
 from models.schemas import ClinicalNoteRequest, ClinicalNoteResponse
 from services.clinical_pipeline import ClinicalPipeline
 from services.response_formatter import response_formatter
@@ -104,8 +105,8 @@ async def analyze_clinical_note(request: ClinicalNoteRequest):
         # Process through pipeline
         response = pipeline.process_clinical_note(request)
         
-        # Format response for frontend
-        formatted_response = response_formatter.format_response(response)
+        # Format response for frontend - EXCLUDE slow Gemini-based info for Call #1
+        formatted_response = response_formatter.format_response(response, exclude_additional_info=True)
         
         return formatted_response
         
@@ -118,53 +119,40 @@ async def analyze_clinical_note(request: ClinicalNoteRequest):
         
         # Check for Gemini API quota errors
         if "quota" in error_str or "resource_exhausted" in error_str or "429" in error_str:
-            logger.error("⚠️ Gemini API quota exhausted!")
+            logger.error("⚠️ Model API quota exhausted!")
             raise HTTPException(
                 status_code=429,
                 detail={
                     "error": "AI service quota has been exhausted",
                     "error_type": "quota_exhausted",
-                    "suggestion": "The AI analysis service has reached its daily limit. Please try again later or contact support to increase quota.",
-                    "details": {
-                        "error_type": "quota_exhausted",
-                        "service": "Google Gemini API",
-                        "retry_after": "24 hours",
-                        "suggestion": "The AI analysis service has reached its daily limit. Please try again later or contact support to increase quota."
-                    }
-                }
-            )
-        
-        # Check for API key errors
-        if "api_key" in error_str or "invalid" in error_str and "key" in error_str:
-            logger.error("⚠️ Invalid Gemini API key!")
-            raise HTTPException(
-                status_code=401,
-                detail={
-                    "error": "AI service authentication failed",
-                    "error_type": "api_key_error",
-                    "suggestion": "There is a problem with the AI service configuration. Please contact support.",
-                    "details": {
-                        "error_type": "api_key_error",
-                        "service": "Google Gemini API",
-                        "suggestion": "There is a problem with the AI service configuration. Please contact support."
-                    }
+                    "suggestion": "The AI analysis service has reached its daily limit. Please try again later.",
+                    "details": {"error_type": "quota_exhausted", "service": "Google Model API"}
                 }
             )
         
         # Generic server error
         raise HTTPException(
             status_code=500,
-            detail={
-                "error": "An unexpected error occurred during analysis",
-                "error_type": "server_error",
-                "suggestion": "Please try again. If the problem persists, contact support.",
-                "details": {
-                    "error_type": "server_error",
-                    "message": str(e)[:200],  # Truncate long errors
-                    "suggestion": "Please try again. If the problem persists, contact support."
-                }
-            }
+            detail={"error": str(e), "error_type": "server_error"}
         )
+
+
+@app.get("/api/analyze/additional/{request_id}")
+async def get_additional_analysis(request_id: str):
+    """
+    ✨ CALL #2 - Generates Red Flags and Action Plan (DECOUPLED)
+    """
+    try:
+        logger.info(f"Generating additional info (Red Flags/Action Plan) for {request_id}...")
+        additional_info = pipeline.generate_additional_info(request_id)
+        return {
+            "request_id": request_id,
+            "red_flags": additional_info.get("red_flags", []),
+            "action_plan": additional_info.get("action_plan", {})
+        }
+    except Exception as e:
+        logger.error(f"Error in additional info generation: {e}")
+        return {"request_id": request_id, "red_flags": [], "action_plan": {}, "error": str(e)}
 
 
 @app.post("/api/analyze/upload", response_model=ClinicalNoteResponse)
@@ -271,8 +259,8 @@ async def analyze_clinical_note_upload(
         # Process through pipeline  
         response = pipeline.process_clinical_note(request)
         
-        # Format response for frontend
-        formatted_response = response_formatter.format_response(response)
+        # Format response for frontend - EXCLUDE slow Gemini-based info for Call #1
+        formatted_response = response_formatter.format_response(response, exclude_additional_info=True)
         
         return formatted_response
         
@@ -285,7 +273,7 @@ async def analyze_clinical_note_upload(
         
         # Check for Gemini API quota errors
         if "quota" in error_str or "resource_exhausted" in error_str or "429" in error_str:
-            logger.error("⚠️ Gemini API quota exhausted during OCR!")
+            logger.error("⚠️ Model API quota exhausted during OCR!")
             raise HTTPException(
                 status_code=429,
                 detail={
@@ -294,7 +282,7 @@ async def analyze_clinical_note_upload(
                     "suggestion": "The AI OCR service has reached its daily limit. Please try again later.",
                     "details": {
                         "error_type": "quota_exhausted",
-                        "service": "Google Gemini Vision API",
+                        "service": "Google Model Vision API",
                         "retry_after": "24 hours"
                     }
                 }

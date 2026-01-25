@@ -172,7 +172,7 @@ IMPORTANT:
         return "\n".join(parts)
     
     def _parse_hypothesis_response(self, response_text: str) -> List[Dict]:
-        """Parse Gemini response into hypothesis list."""
+        """Parse Model response into hypothesis list."""
         import json
         
         # Extract JSON from response

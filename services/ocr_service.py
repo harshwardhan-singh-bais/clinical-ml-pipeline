@@ -5,6 +5,7 @@ Extracts text from images and PDFs
 
 import logging
 from typing import Optional
+from pathlib import Path
 import easyocr
 import fitz  # PyMuPDF for PDF extraction
 from PIL import Image
@@ -20,12 +21,41 @@ class OCRService:
     def __init__(self):
         """Initialize EasyOCR"""
         try:
-            # Initialize EasyOCR reader (English only for speed)
-            # download_enabled=True will download models on first use
-            self.reader = easyocr.Reader(['en'], gpu=False)
-            logger.info("✅ OCR Service initialized with EasyOCR (offline)")
+            # Define local model storage directory
+            project_root = Path(__file__).parent.parent
+            self.model_dir = project_root / "models" / "ocr_weights"
+            self.model_dir.mkdir(parents=True, exist_ok=True)
+            
+            logger.info(f"Initializing OCR Service. Looking for models in: {self.model_dir}")
+            
+            try:
+                # Try to initialize with automatic download enabled first
+                self.reader = easyocr.Reader(['en'], gpu=False, model_storage_directory=str(self.model_dir))
+                logger.info("✅ OCR Service initialized with EasyOCR (online/cached)")
+            except Exception as download_error:
+                logger.warning(f"EasyOCR automatic download failed: {download_error}")
+                logger.info("Attempting to use local models without download...")
+                
+                # Check if models exist manually
+                model_files = list(self.model_dir.glob("*.pth"))
+                if not model_files:
+                    logger.error("No OCR models found in local directory. Please run 'python scripts/download_ocr_models.py' manually.")
+                    raise RuntimeError("OCR models missing and download failed. See logs for manual fix instructions.")
+                
+                # Try initializing with download disabled
+                self.reader = easyocr.Reader(
+                    ['en'], 
+                    gpu=False, 
+                    model_storage_directory=str(self.model_dir),
+                    download_enabled=False
+                )
+                logger.info("✅ OCR Service initialized with EasyOCR (offline mode)")
+                
         except Exception as e:
             logger.error(f"Failed to initialize OCR service: {e}")
+            # Don't raise here if we want the app to start even without OCR
+            # but for this specific request, the user wants it resolved.
+            self.reader = None
             raise
     
     def extract_text_from_image(

@@ -1,5 +1,5 @@
 """
-Critical Red Flags Detector - Gemini-powered
+Critical Red Flags Detector - Model-powered
 Extracts critical clinical red flags using LLM analysis
 """
 
@@ -13,13 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 class CriticalRedFlagsDetector:
-    """Detect critical red flags using Gemini LLM"""
+    """Detect critical red flags using Model LLM"""
     
     def __init__(self):
-        """Initialize Gemini model"""
+        """Initialize Model model"""
         genai.configure(api_key=settings.GEMINI_API_KEY)
         self.model = genai.GenerativeModel(settings.GEMINI_MODEL)
-        logger.info("✅ Critical Red Flags Detector initialized (Gemini-powered)")
+        logger.info("✅ Critical Red Flags Detector initialized (Model-powered)")
     
     def detect_red_flags(
         self,
@@ -29,7 +29,7 @@ class CriticalRedFlagsDetector:
         vitals: Dict = None
     ) -> List[Dict]:
         """
-        Detect critical red flags from clinical data using Gemini
+        Detect critical red flags from clinical data using Model
         
         Args:
             clinical_note: Original clinical note text
@@ -42,15 +42,15 @@ class CriticalRedFlagsDetector:
         """
         
         try:
-            # Build context for Gemini
+            # Build context for Model
             context = self._build_context(clinical_note, diagnoses, symptoms, vitals)
             
             # Create prompt for red flag detection
             prompt = self._create_prompt(context)
             
-            logger.info("🔍 Detecting critical red flags using Gemini...")
+            logger.info("🔍 Detecting critical red flags using Model...")
             
-            # Call Gemini
+            # Call Model
             response = self.model.generate_content(prompt)
             response_text = response.text.strip()
             
@@ -64,7 +64,7 @@ class CriticalRedFlagsDetector:
             return red_flags
             
         except Exception as e:
-            logger.error(f"❌ Error detecting red flags with Gemini: {e}")
+            logger.error(f"❌ Error detecting red flags with Model: {e}")
             # Fallback to rule-based detection
             return self._fallback_detection(diagnoses, symptoms, vitals)
     
@@ -75,7 +75,7 @@ class CriticalRedFlagsDetector:
         symptoms: List[str],
         vitals: Dict = None
     ) -> Dict:
-        """Build context dictionary for Gemini"""
+        """Build context dictionary for Model"""
         
         context = {
             "clinical_note": clinical_note[:1500],  # Limit to 1500 chars to save tokens
@@ -96,7 +96,7 @@ class CriticalRedFlagsDetector:
         return context
     
     def _create_prompt(self, context: Dict) -> str:
-        """Create Gemini prompt for red flag detection"""
+        """Create Model prompt for red flag detection"""
         
         prompt = f"""You are a clinical safety AI assistant specialized in identifying CRITICAL RED FLAGS that require immediate medical attention.
 
@@ -208,7 +208,7 @@ Output ONLY the JSON array, no markdown, no code blocks, no explanation.
         return prompt
     
     def _parse_response(self, response_text: str) -> List[Dict]:
-        """Parse Gemini's response and extract red flags"""
+        """Parse Model's response and extract red flags"""
         
         try:
             # Clean response (remove markdown if present)
@@ -248,7 +248,7 @@ Output ONLY the JSON array, no markdown, no code blocks, no explanation.
             return validated_flags[:5]  # Max 5 red flags
             
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Gemini response as JSON: {e}")
+            logger.error(f"Failed to parse Model response as JSON: {e}")
             logger.error(f"Response text: {response_text[:500]}")
             return self._extract_flags_from_text(response_text)
         except Exception as e:
@@ -292,7 +292,7 @@ Output ONLY the JSON array, no markdown, no code blocks, no explanation.
         vitals: Dict = None
     ) -> List[Dict]:
         """
-        Fallback rule-based detection if Gemini fails
+        Fallback rule-based detection if Model fails
         """
         
         logger.warning("⚠️ Using fallback rule-based red flag detection")

@@ -1,5 +1,5 @@
 """
-Enhanced Clinical Normalizer - Gemini-based Structured Extraction (ORIGINAL VERSION)
+Enhanced Clinical Normalizer - Model-based Structured Extraction (ORIGINAL VERSION)
 This is the BACKUP of the original monolithic extraction approach.
 
 BACKUP DATE: 2026-01-15
@@ -17,19 +17,19 @@ logger = logging.getLogger(__name__)
 
 class EnhancedClinicalNormalizer:
     """
-    Enhanced normalizer using Gemini for structured extraction.
+    Enhanced normalizer using Model for structured extraction.
     Extracts symptoms with location, severity, character, etc.
     """
     
     def __init__(self):
-        """Initialize Gemini model"""
+        """Initialize Model model"""
         genai.configure(api_key=settings.GEMINI_API_KEY)
         self.model = genai.GenerativeModel(settings.GEMINI_MODEL)
         logger.info("Enhanced Clinical Normalizer initialized")
     
     def normalize_and_extract(self, raw_clinical_note: str) -> Dict:
         """
-        Extract structured data from clinical note using Gemini.
+        Extract structured data from clinical note using Model.
         
         Args:
             raw_clinical_note: Raw messy clinical note
@@ -243,7 +243,7 @@ FINAL CHECKLIST
 Output ONLY the JSON. No markdown, no explanation, no code blocks."""
 
         try:
-            logger.info("Performing structured extraction with Gemini...")
+            logger.info("Performing structured extraction with Model...")
             response = self.model.generate_content(prompt)
             response_text = response.text.strip()
             

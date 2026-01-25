@@ -1,6 +1,6 @@
 """
 LLM-Based Evidence Grading
-Uses Gemini to assess how strongly evidence supports a diagnosis.
+Uses Model to assess how strongly evidence supports a diagnosis.
 """
 
 import logging
@@ -18,14 +18,14 @@ class LLMEvidenceGrader:
     Replaces heuristic scoring with semantic understanding.
     """
     
-    def __init__(self, gemini_model):
+    def __init__(self, model_instance):
         """
         Initialize LLM grader.
         
         Args:
-            gemini_model: Initialized Gemini model instance
+            model_instance: Initialized Model instance
         """
-        self.model = gemini_model
+        self.model = model_instance
         logger.info("LLMEvidenceGrader initialized")
     
     def grade_evidence(

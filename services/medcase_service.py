@@ -9,7 +9,7 @@ import json
 import re
 from datasets import load_dataset
 from typing import Dict, List, Optional, Tuple
-from services.llm_service import GeminiService
+from services.llm_service import ModelService
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class MedCaseReasoningService:
         """Initialize MedCaseReasoning service."""
         logger.info("Initializing MedCaseReasoning Service...")
         self.dataset = None
-        self.gemini_service = GeminiService()
+        self.model_service = ModelService()
         self._load_dataset()
     
     def _load_dataset(self):
@@ -123,7 +123,7 @@ class MedCaseReasoningService:
             # PATH 1: Evidence-based (MedCase matched)
             for idx, case in enumerate(matched_cases[:3]):
                 try:
-                    # Build prompt for Gemini to formulate diagnosis
+                    # Build prompt for Model to formulate diagnosis
                     prompt = f"""Based on the following clinical reasoning pattern, formulate a concise differential diagnosis statement.
 
 Patient Symptoms: {', '.join(normalized_symptoms)}
@@ -136,7 +136,7 @@ Suggested Diagnosis: {case['diagnosis']}
 Task: Generate a 2-sentence clinical reasoning explanation for why this diagnosis fits the patient's presentation.
 Output ONLY the reasoning text, no preamble."""
                     
-                    response = self.gemini_service.native_model.generate_content(prompt)
+                    response = self.model_service.native_model.generate_content(prompt)
                     reasoning_text = response.text.strip()
                     
                     diagnoses.append({
@@ -158,7 +158,7 @@ Output ONLY the reasoning text, no preamble."""
                     continue
         
         else:
-            # PATH 2: Fallback (No MedCase match - Gemini generates from symptoms)
+            # PATH 2: Fallback (No MedCase match - Model generates from symptoms)
             logger.warning("⚠️ No MedCase matches - using LLM (informational only)")
             
             try:
@@ -180,7 +180,7 @@ Output ONLY the reasoning text, no preamble."""
                   {{"diagnosis": "Diagnosis Name 3", "reasoning": "Clinical explanation..."}}
                 ]"""
                 
-                response = self.gemini_service.native_model.generate_content(prompt)
+                response = self.model_service.native_model.generate_content(prompt)
                 response_text = response.text.strip()
                 
                 # Remove markdown code blocks if present

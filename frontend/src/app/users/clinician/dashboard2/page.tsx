@@ -7,7 +7,7 @@ import OutputSection from '@/components/outputSection/outputSection';
 import Footer from '@/components/footer/footer';
 import Sidebar from '@/components/sidebar/sidebar';
 import MedoraLoader from '@/components/medoraLoader/medoraLoader';
-import { api, type AnalysisResponse } from '@/lib/api';
+import { api, type AnalysisResponse, type AdditionalDataResponse } from '@/lib/api';
 
 // Load the font
 const poppins = Poppins({
@@ -21,6 +21,8 @@ export default function HealthDashboard() {
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisData, setAnalysisData] = useState<AnalysisResponse | null>(null);
+  const [additionalData, setAdditionalData] = useState<AdditionalDataResponse | null>(null);
+  const [isFetchingAdditional, setIsFetchingAdditional] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [inputText, setInputText] = useState('');
@@ -28,6 +30,47 @@ export default function HealthDashboard() {
 
   // The specific glass style you requested
   const glassStyle = "bg-[rgba(255,255,255,0.18)] rounded-[16px] shadow-[0_4px_30px_rgba(0,0,0,0.1)] backdrop-blur-[0.9px] border border-[rgba(255,255,255,0.76)]";
+
+  const handleAnalysisError = (err: any) => {
+    // Parse validation error from backend (silently, no console spam)
+    let errorMessage = 'Failed to analyze clinical note. Please try again.';
+    let details = null;
+
+    if (err.message) {
+      try {
+        // The error message is now the stringified detail object
+        const errorData = JSON.parse(err.message);
+
+        // Check if it's already the detail object (no nesting)
+        if (errorData.error && errorData.error_type) {
+          errorMessage = errorData.error;
+          details = errorData;
+        }
+        // Legacy: check if it has detail property
+        else if (errorData.detail) {
+          if (typeof errorData.detail === 'object') {
+            errorMessage = errorData.detail.error || errorMessage;
+            details = errorData.detail;
+          } else {
+            errorMessage = errorData.detail;
+          }
+        }
+      } catch {
+        // Not JSON, use message as-is
+        errorMessage = err.message;
+      }
+    }
+
+    // Only log unexpected errors (not validation errors)
+    if (!details) {
+      console.error('❌ Analysis error:', err);
+    }
+
+    setError(errorMessage);
+    setErrorDetails(details);
+    setShowErrorModal(true);
+    setIsAnalyzing(false); // Ensure loading state is cleared on error
+  };
 
   // Function to handle the transition
   const handleAnalyze = async (text: string) => {
@@ -52,46 +95,28 @@ export default function HealthDashboard() {
 
       setAnalysisData(result);
       setHasAnalyzed(true);
-    } catch (err: any) {
-      // Parse validation error from backend (silently, no console spam)
-      let errorMessage = 'Failed to analyze clinical note. Please try again.';
-      let details = null;
-
-      if (err.message) {
-        try {
-          // The error message is now the stringified detail object
-          const errorData = JSON.parse(err.message);
-
-          // Check if it's already the detail object (no nesting)
-          if (errorData.error && errorData.error_type) {
-            errorMessage = errorData.error;
-            details = errorData;
-          }
-          // Legacy: check if it has detail property
-          else if (errorData.detail) {
-            if (typeof errorData.detail === 'object') {
-              errorMessage = errorData.detail.error || errorMessage;
-              details = errorData.detail;
-            } else {
-              errorMessage = errorData.detail;
-            }
-          }
-        } catch {
-          // Not JSON, use message as-is
-          errorMessage = err.message;
-        }
-      }
-
-      // Only log unexpected errors (not validation errors)
-      if (!details) {
-        console.error('❌ Analysis error:', err);
-      }
-
-      setError(errorMessage);
-      setErrorDetails(details);
-      setShowErrorModal(true);
-    } finally {
       setIsAnalyzing(false);
+
+      // ✨ Call #2: Fetch Additional Info (Red Flags and Action Plan) in background
+      if (result.request_id) {
+        fetchAdditionalInfo(result.request_id);
+      }
+    } catch (err: any) {
+      handleAnalysisError(err);
+    }
+  };
+
+  const fetchAdditionalInfo = async (requestId: string) => {
+    setIsFetchingAdditional(true);
+    try {
+      console.log('✨ Fetching additional deep insights (Call #2)...');
+      const result = await api.getAdditionalInfo(requestId);
+      console.log('✅ Additional Data:', result);
+      setAdditionalData(result);
+    } catch (err) {
+      console.error('❌ Error fetching additional info:', err);
+    } finally {
+      setIsFetchingAdditional(false);
     }
   };
 
@@ -155,7 +180,12 @@ export default function HealthDashboard() {
                     <MedoraLoader />
                   </div>
                 ) : (
-                  <OutputSection isVisible={true} data={analysisData} />
+                  <OutputSection
+                    isVisible={true}
+                    data={analysisData}
+                    additionalData={additionalData}
+                    isFetchingAdditional={isFetchingAdditional}
+                  />
                 )}
               </div>
             ) : isAnalyzing ? (
@@ -172,10 +202,19 @@ export default function HealthDashboard() {
                   <InputHub
                     onAnalyze={handleAnalyze}
                     isAnalyzing={isAnalyzing}
+                    onUploadStart={() => setIsAnalyzing(true)}
                     onUploadComplete={(data) => {
+                      console.log('✅ Upload Success:', data);
                       setAnalysisData(data);
                       setHasAnalyzed(true);
+                      setIsAnalyzing(false);
+
+                      // ✨ Trigger Call #2 for uploads too
+                      if (data.request_id) {
+                        fetchAdditionalInfo(data.request_id);
+                      }
                     }}
+                    onUploadError={handleAnalysisError}
                   />
                 </div>
 

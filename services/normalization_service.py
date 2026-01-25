@@ -21,7 +21,7 @@ class ClinicalNormalizationService:
     """
     
     def __init__(self):
-        """Initialize Gemini for normalization."""
+        """Initialize Model for normalization."""
         genai.configure(api_key=settings.GEMINI_API_KEY)
         self.model = genai.GenerativeModel(settings.GEMINI_MODEL)
         logger.info("Clinical Normalization Service initialized (Full-Text Expansion)")
@@ -32,7 +32,7 @@ class ClinicalNormalizationService:
         
         Args:
             raw_clinical_note: Raw clinical note with abbreviations
-            use_llm: If True, use Gemini for expansion (costs API quota)
+            use_llm: If True, use Model for expansion (costs API quota)
                      If False, return text as-is (DEFAULT - saves quota)
         
         Returns:
@@ -45,8 +45,7 @@ class ClinicalNormalizationService:
         if not use_llm:
             logger.info("Skipping LLM normalization (quota-saving mode)")
             return raw_clinical_note
-        
-        # ORIGINAL MODE: Use Gemini (costs 1 API call)
+        # ORIGINAL MODE: Use Model (costs 1 API call)
         prompt = f"""You are a clinical language normalization engine, NOT a summarizer.
 
 Your task is to transform raw, unstructured, noisy, shorthand, or messy
@@ -111,7 +110,7 @@ suitable for downstream embedding, retrieval, and evidence matching."""
         
         Args:
             normalized_text: Clinical text
-            use_llm: If True, use Gemini for extraction (costs API quota)
+            use_llm: If True, use Model for extraction (costs API quota)
                      If False, use simple regex/keyword extraction (DEFAULT)
         
         Returns:
@@ -157,8 +156,7 @@ suitable for downstream embedding, retrieval, and evidence matching."""
                 "medications": [],
                 "negations": list(set(negations))[:5]
             }
-        
-        # ORIGINAL MODE: Use Gemini (costs 1 API call)
+        # ORIGINAL MODE: Use Model (costs 1 API call)
         prompt = f"""From this NORMALIZED clinical note, extract key concepts for metadata tagging.
 
 Note:

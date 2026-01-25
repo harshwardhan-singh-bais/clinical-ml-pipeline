@@ -133,6 +133,29 @@ export interface AnalysisResponse {
         basis: string;
         missing_categories: string[];
     };
+    total_evidence_retrieved?: number;
+}
+
+export interface AdditionalDataResponse {
+    request_id: string;
+    red_flags: Array<{
+        flag: string;
+        severity: string;
+        keywords: string[];
+    }>;
+    action_plan: {
+        immediate?: Array<{
+            id: string;
+            action: string;
+            time?: string;
+        }>;
+        followUp?: Array<{
+            id: string;
+            action: string;
+            time?: string;
+        }>;
+    };
+    error?: string;
 }
 
 export interface Patient {
@@ -233,6 +256,27 @@ class ApiClient {
         const response = await fetch(`${this.baseUrl}/api/status/${requestId}`);
         if (!response.ok) throw new Error('Failed to get status');
         return await response.json();
+    }
+
+    /**
+     * Get additional analysis info (Red Flags and Action Plan)
+     * This is the "Call #2" in the progressive loading strategy.
+     */
+    async getAdditionalInfo(requestId: string): Promise<AdditionalDataResponse> {
+        try {
+            const response = await fetch(`${this.baseUrl}/api/analyze/additional/${requestId}`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch additional info');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching additional info:', error);
+            return {
+                request_id: requestId,
+                red_flags: [],
+                action_plan: { immediate: [], followUp: [] }
+            };
+        }
     }
 
     /**

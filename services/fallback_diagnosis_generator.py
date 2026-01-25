@@ -1,5 +1,5 @@
 """
-Fallback Diagnosis Generator - Gemini-powered
+Fallback Diagnosis Generator - Model-powered
 ONLY used when final diagnosis count = 0 after validation
 Generates 3 potential diagnoses using pure Gemini reasoning
 """
@@ -14,13 +14,13 @@ logger = logging.getLogger(__name__)
 
 
 class FallbackDiagnosisGenerator:
-    """Generate fallback diagnoses using Gemini when validation removes all candidates"""
+    """Generate fallback diagnoses using Model when validation removes all candidates"""
     
     def __init__(self):
-        """Initialize Gemini model"""
+        """Initialize Model model"""
         genai.configure(api_key=settings.GEMINI_API_KEY)
         self.model = genai.GenerativeModel(settings.GEMINI_MODEL)
-        logger.info("✅ Fallback Diagnosis Generator initialized (Gemini-powered)")
+        logger.info("✅ Fallback Diagnosis Generator initialized (Model-powered)")
     
     def generate_fallback_diagnoses(
         self,
@@ -35,17 +35,17 @@ class FallbackDiagnosisGenerator:
             normalized_data: Normalized patient data (symptoms, vitals, etc.)
             
         Returns:
-            List of 3 Gemini-generated diagnosis dictionaries
+            List of 3 Model-generated diagnosis dictionaries
         """
         
         try:
-            # Create prompt for Gemini
+            # Create prompt for Model
             prompt = self._create_prompt(clinical_note, normalized_data)
             
-            logger.warning("⚠️ CRITICAL: No diagnoses survived validation. Using Gemini fallback...")
-            logger.info("🤖 Generating 3 potential diagnoses using pure Gemini reasoning...")
+            logger.warning("⚠️ CRITICAL: No diagnoses survived validation. Using Model fallback...")
+            logger.info("🤖 Generating 3 potential diagnoses using pure Model reasoning...")
             
-            # Call Gemini
+            # Call Model
             response = self.model.generate_content(prompt)
             response_text = response.text.strip()
             
@@ -59,7 +59,7 @@ class FallbackDiagnosisGenerator:
             return diagnoses
             
         except Exception as e:
-            logger.error(f"❌ Error generating fallback diagnoses with Gemini: {e}")
+            logger.error(f"❌ Error generating fallback diagnoses with Model: {e}")
             # Return minimal fallback
             return self._minimal_fallback()
     
@@ -68,7 +68,7 @@ class FallbackDiagnosisGenerator:
         clinical_note: str,
         normalized_data: Dict
     ) -> str:
-        """Create Gemini prompt for fallback diagnosis generation"""
+        """Create Model prompt for fallback diagnosis generation"""
         
         # Extract key clinical features
         symptoms = normalized_data.get("symptom_names", normalized_data.get("symptoms", []))
@@ -81,7 +81,7 @@ class FallbackDiagnosisGenerator:
 CRITICAL CONTEXT
 ========================
 
-This is a FALLBACK scenario. The automated diagnosis system could not match this case to any known disease patterns in the medical knowledge base (773 diseases checked + Gemini validation).
+This is a FALLBACK scenario. The automated diagnosis system could not match this case to any known disease patterns in the medical knowledge base (773 diseases checked + Model validation).
 
 Your task: Generate 3 most likely differential diagnoses using your medical knowledge and clinical reasoning.
 
@@ -168,7 +168,7 @@ Output ONLY the JSON array, no markdown, no code blocks, no explanation.
         return prompt
     
     def _parse_response(self, response_text: str) -> List[Dict]:
-        """Parse Gemini's response and extract diagnoses"""
+        """Parse Model's response and extract diagnoses"""
         
         try:
             # Clean response (remove markdown if present)
@@ -224,7 +224,7 @@ Output ONLY the JSON array, no markdown, no code blocks, no explanation.
             return validated[:3]  # Return exactly 3
             
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Gemini response as JSON: {e}")
+            logger.error(f"Failed to parse Model response as JSON: {e}")
             logger.error(f"Response text: {response_text[:500]}")
             return self._minimal_fallback()
         except Exception as e:
@@ -236,7 +236,7 @@ Output ONLY the JSON array, no markdown, no code blocks, no explanation.
         Absolute minimum fallback if Gemini fails
         """
         
-        logger.error("⚠️ CRITICAL: Gemini fallback failed. Using minimal generic diagnoses.")
+        logger.error("⚠️ CRITICAL: Model fallback failed. Using minimal generic diagnoses.")
         
         return [
             {

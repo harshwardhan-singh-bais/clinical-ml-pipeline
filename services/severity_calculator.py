@@ -1,6 +1,6 @@
 """
 Symptom Severity Calculator - Rule-based severity scoring (0-10)
-No LLM/Gemini calls - uses keywords, structured data, and heuristics
+No LLM/Model calls - uses keywords, structured data, and heuristics
 """
 
 import logging

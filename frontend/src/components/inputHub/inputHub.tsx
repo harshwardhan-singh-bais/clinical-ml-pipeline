@@ -9,13 +9,15 @@ import { AnalysisResponse } from "@/lib/api";
 interface InputHubProps {
   onAnalyze: (text: string) => void | Promise<void>;
   isAnalyzing: boolean;
+  onUploadStart?: () => void;
   onUploadComplete?: (data: AnalysisResponse) => void;
+  onUploadError?: (error: any) => void;
   value?: string;
   onChange?: (text: string) => void;
 }
 
 // 2. Accept props in the component
-const InputHub = ({ onAnalyze, isAnalyzing, onUploadComplete }: InputHubProps) => {
+const InputHub = ({ onAnalyze, isAnalyzing, onUploadStart, onUploadComplete, onUploadError }: InputHubProps) => {
   const [inputText, setInputText] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -34,6 +36,7 @@ const InputHub = ({ onAnalyze, isAnalyzing, onUploadComplete }: InputHubProps) =
       return;
     }
 
+    if (onUploadStart) onUploadStart();
     setIsUploading(true);
     try {
       // Upload image and get analysis
@@ -45,8 +48,11 @@ const InputHub = ({ onAnalyze, isAnalyzing, onUploadComplete }: InputHubProps) =
       }
     } catch (error: any) {
       console.error('Image upload failed:', error);
-      alert(error.message || 'Failed to process image');
+      if (onUploadError) onUploadError(error);
+      else alert(error.message || 'Failed to process image');
+      setIsUploading(false);
     } finally {
+      // If we are still mounted
       setIsUploading(false);
       if (imageInputRef.current) {
         imageInputRef.current.value = '';
@@ -64,6 +70,7 @@ const InputHub = ({ onAnalyze, isAnalyzing, onUploadComplete }: InputHubProps) =
       return;
     }
 
+    if (onUploadStart) onUploadStart();
     setIsUploading(true);
     try {
       // Upload PDF and get analysis
@@ -75,7 +82,9 @@ const InputHub = ({ onAnalyze, isAnalyzing, onUploadComplete }: InputHubProps) =
       }
     } catch (error: any) {
       console.error('PDF upload failed:', error);
-      alert(error.message || 'Failed to process PDF');
+      if (onUploadError) onUploadError(error);
+      else alert(error.message || 'Failed to process PDF');
+      setIsUploading(false);
     } finally {
       setIsUploading(false);
       if (pdfInputRef.current) {
