@@ -125,6 +125,10 @@ huggingface-hub>=0.20.0
 # Used in: services/document_processor.py
 PyPDF2>=3.0.1
 
+# PyMuPDF (fitz) - Enhanced PDF text extraction and OCR support
+# Used in: services/ocr_service.py
+pymupdf>=1.26.0
+
 # EasyOCR - Optical Character Recognition for scanned documents
 # Used in: services/document_processor.py
 easyocr>=1.7.0

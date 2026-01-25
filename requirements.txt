@@ -48,6 +48,7 @@ huggingface-hub>=0.20.0
 # Document Processing & OCR
 PyPDF2>=3.0.1
 easyocr>=1.7.0
+pymupdf>=1.26.0
 Pillow>=10.1.0
 
 # Text Processing
