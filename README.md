@@ -1,12 +1,55 @@
 # Clinical ML Pipeline
 
 **Production-grade RAG system for clinical note analysis and differential diagnosis generation**
+
+---
+
 ## 🚀 Installation & Quickstart
 
+### 1. Clone the Repository
+```bash
+git clone <your-repo-url>
+cd clinical-ml-pipeline
+```
 
-Server starts at: `http://localhost:8000`
+### 2. Setup Backend
+```bash
+# Create virtual environment
+uv venv
 
-Interactive docs: `http://localhost:8000/docs`
+# Activate virtual environment
+.venv\Scripts\activate
+
+# Install dependencies
+uv pip install -r requirements.txt
+
+# Run the backend server
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### 3. Setup Frontend
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Run the development server
+npm run dev
+```
+
+### 4. Access the Application
+Open your browser and go to:
+**http://localhost:3000/users/landing**
+
+---
+
+## 💻 Usage
+
+Backend API server runs at: `http://localhost:8000`
+
+Interactive API docs: `http://localhost:8000/docs`
 
 
 ### **Test with Example Note**
