@@ -13,35 +13,7 @@ Transform unstructured clinical notes into:
 
 **Example**:
 
-**Input** (Clinical Note):
-```
-62 year old male presents with burning substernal chest pain 
-that worsens after meals and when lying down. Pain started 3 
-weeks ago. Denies diaphoresis, shortness of breath, or radiation 
-to arms. No known cardiac history.
-```
 
-**Output**:
-```json
-{
-  "summary": "62M with 3-week history of substernal chest pain, quality: burning, 
-              triggered by meals and recumbency. Negative for cardiac red flags 
-              (no diaphoresis, SOB, radiation).",
-  
-  "differential_diagnoses": [
-    {
-      "diagnosis": "GERD (Gastroesophageal Reflux Disease)",
-      "priority": 1,
-      "confidence": "LIKELY (75/100)",
-      "reasoning": "Burning substernal pain worse with meals and lying down is 
-                    classic for GERD. Absence of cardiac symptoms (no diaphoresis, 
-                    radiation, or exertional component) makes MI unlikely.",
-      "evidence": [
-        "CSV Dataset: Matched 3/3 key symptoms",
-        "Pattern Detection: GI pattern score +45 (burning quality + meal trigger)",
-        "NCBI Case #12847: Similar presentation, confirmed GERD"
-      ]
-    },
     {
       "diagnosis": "Esophagitis",
       "priority": 2,
@@ -64,53 +36,8 @@ to arms. No known cardiac history.
 - **[Documentation Index](DOCS_INDEX.md)** - Navigation guide for all documentation
 
 ### **Quick Links**
-- [Installation](#installation)
-- [Usage](#usage)
-- [API Endpoints](#api-endpoints)
-- [Architecture](#architecture)
-- [Datasets](#datasets)
+## 🚀 Quickstart
 
----
-
-## 🚀 Installation
-
-### **Prerequisites**
-- Python 3.10+
-- Virtual environment (recommended)
-- Google Gemini API key
-
-### **Setup**
-
-```bash
-# Clone repository
-git clone <your-repo-url>
-cd clinical-ml-pipeline
-
-# Create virtual environment
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-# source .venv/bin/activate  # Linux/Mac
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set up environment variables
-copy .env.example .env
-# Edit .env with your API keys
-
-# Decompress dataset (if not already done)
-python scripts\decompress_csv.py
-```
-
----
-
-## 💻 Usage
-
-### **Run the API Server**
-
-```bash
-python main.py
-```
 
 Server starts at: `http://localhost:8000`
 
@@ -144,7 +71,6 @@ print(f"Top Diagnosis: {result['differential_diagnoses'][0]['diagnosis']}")
 
 ---
 
-## 🔌 API Endpoints
 
 ### **POST /api/analyze**
 Process clinical note (JSON input)

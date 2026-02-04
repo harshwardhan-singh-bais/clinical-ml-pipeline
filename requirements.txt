@@ -1,83 +1,237 @@
 # ============================================================================
-# Clinical ML Pipeline - Production Requirements
+# Clinical ML Pipeline - COMPLETE Requirements
 # ============================================================================
-# Python: 3.12.x | OS: Windows 11 | Last Updated: 2026-01-20
+# Python Version: 3.12.x
+# Target OS: Windows 11
+# Generated: 2026-01-20
 # 
-# This requirements.txt contains ONLY the packages needed for production.
-# All packages have been verified to work with Python 3.12 on Windows.
+# This file contains ALL dependencies detected from comprehensive codebase scan.
+# Includes explicit imports, transitive dependencies, and runtime requirements.
 # ============================================================================
 
-# Web Framework & API
+# ============================================================================
+# CORE WEB FRAMEWORK & API
+# ============================================================================
+
+# FastAPI - Main web framework for REST API endpoints
+# Used in: main.py, app/routes.py, app/__init__.py
 fastapi>=0.109.0
+
+# Uvicorn - ASGI server for FastAPI
+# Used in: main.py, app/main.py
+# [standard] includes websockets, httptools, uvloop (Windows compatible)
 uvicorn[standard]>=0.27.0
-python-multipart>=0.0.6
+
+# HTTP Client & Request handling
+# Used throughout for API calls
 requests>=2.31.0
 
-# Data Validation
+# File upload handling for FastAPI
+# Used in: main.py for file uploads
+python-multipart>=0.0.6
+
+
+# ============================================================================
+# DATA VALIDATION & CONFIGURATION
+# ============================================================================
+
+# Pydantic V2 - Data validation and settings management
+# Used in: models/schemas.py, config/settings.py
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 
-# AI & Machine Learning
-# Note: google-genai is the new package replacing deprecated google-generativeai
-google-genai>=1.59.0
-transformers>=4.36.0
-torch>=2.1.0
-sentence-transformers>=2.2.0
-
-# LangChain Ecosystem
-langchain>=0.1.0
-langchain-core>=0.1.0
-langchain-google-genai>=4.2.0
-langchain-community>=0.0.10
-langchain-text-splitters>=0.0.1
-
-# Additional dependencies for langchain-google-genai
-distro>=1.9.0
-filetype>=1.2.0
-sniffio>=1.3.1
-
-# Vector Databases
-supabase>=2.3.0
-psycopg2-binary>=2.9.9
-qdrant-client>=1.7.0
-
-# Datasets
-datasets>=2.16.0
-huggingface-hub>=0.20.0
-
-# Document Processing & OCR
-PyPDF2>=3.0.1
-easyocr>=1.7.0
-pymupdf>=1.26.0
-Pillow>=10.1.0
-
-# Text Processing
-tiktoken>=0.5.2
-fuzzywuzzy>=0.18.0
-python-Levenshtein>=0.25.0
-
-# Data Science
-numpy>=1.24.0,<2.0.0  # Pin to 1.x - NumPy 2.x breaks compatibility with compiled modules (easyocr, torch, etc.)
-pandas>=2.0.0
-
-# Utilities
-python-dotenv>=1.0.0
-tqdm>=4.66.0
 
 # ============================================================================
-# Installation Notes:
-# 
-# Quick install:
-#   pip install -r requirements.txt
-# 
-# For clean install:
-#   pip install --upgrade --force-reinstall -r requirements.txt
+# LARGE LANGUAGE MODELS & AI
+# ============================================================================
+
+# Google Gemini - Primary LLM for clinical synthesis
+# Used in: services/llm_service.py, services/hypothesis_generation.py, etc.
+google-generativeai>=0.3.0
+
+# Transformers - Hugging Face transformers library
+# Required by sentence-transformers and for model loading
+transformers>=4.36.0
+
+# PyTorch - Required by transformers and sentence-transformers
+# Windows-compatible wheel
+torch>=2.1.0
+
+# Sentence Transformers - Embeddings (all-mpnet-base-v2)
+# Used in: utils/embeddings.py, services/reranker.py
+sentence-transformers>=2.2.0
+
+
+# ============================================================================
+# LANGCHAIN ECOSYSTEM
+# ============================================================================
+
+# LangChain Core - Base framework for RAG pipeline
+# Used in: services/llm_service.py, services/chunking.py
+langchain>=0.1.0
+langchain-core>=0.1.0
+
+# LangChain Google Gemini Integration
+# Used in: services/llm_service.py
+langchain-google-genai>=0.0.6
+
+# LangChain Community - Additional integrations
+# Used in: services/retrieval.py
+langchain-community>=0.0.10
+
+# LangChain Text Splitters - Medical-aware chunking
+# Used in: services/chunking.py
+langchain-text-splitters>=0.0.1
+
+
+# ============================================================================
+# VECTOR DATABASES & STORAGE
+# ============================================================================
+
+# Supabase - PostgreSQL with pgvector for vector storage
+# Primary vector database (3,397 StatPearls chunks)
+# Used in: utils/db.py, services/audit.py
+supabase>=2.3.0
+
+# PostgreSQL adapter - Required for direct DB operations
+# Binary version includes PostgreSQL dependencies (Windows)
+# Used in: utils/db.py, scripts/init_db.py, scripts/recreate_vector_table.py
+psycopg2-binary>=2.9.9
+
+# Qdrant Client - Alternative vector database support
+# Used in: services/qdrant_service.py
+qdrant-client>=1.7.0
+
+
+# ============================================================================
+# DATASETS & DATA LOADING
+# ============================================================================
+
+# Hugging Face Datasets - Loading medical datasets
+# Used in: Multiple services (ddxplus, medcase, guidelines, etc.)
+# Datasets: MedCaseReasoning, Asclepius, Augmented Notes, DDXPlus, etc.
+datasets>=2.16.0
+
+# Hugging Face Hub - Dataset repository access
+# Required for datasets library
+huggingface-hub>=0.20.0
+
+
+# ============================================================================
+# DOCUMENT PROCESSING & OCR
+# ============================================================================
+
+# PyPDF2 - PDF text extraction
+# Used in: services/document_processor.py
+PyPDF2>=3.0.1
+
+# PyMuPDF (fitz) - Enhanced PDF text extraction and OCR support
+# Used in: services/ocr_service.py
+pymupdf>=1.26.0
+
+# EasyOCR - Optical Character Recognition for scanned documents
+# Used in: services/document_processor.py
+easyocr>=1.7.0
+
+# Pillow - Image processing
+# Used in: services/document_processor.py
+Pillow>=10.1.0
+
+
+# ============================================================================
+# TEXT PROCESSING & TOKENIZATION
+# ============================================================================
+
+# TikToken - OpenAI tokenizer for token counting
+# Used in: services/chunking.py
+tiktoken>=0.5.2
+
+# FuzzyWuzzy - Fuzzy string matching for symptom normalization
+# Used in: services/symptom_mappers.py
+fuzzywuzzy>=0.18.0
+
+# Python Levenshtein - Accelerates fuzzywuzzy
+# Optional but highly recommended for performance
+python-Levenshtein>=0.25.0
+
+
+# ============================================================================
+# DATA SCIENCE & NUMERICAL COMPUTING
+# ============================================================================
+
+# NumPy - Numerical operations and array handling
+# Used in: utils/db.py, services/confidence_scorer.py, scripts/test_embeddings.py
+numpy>=1.24.0
+
+# Pandas - Data manipulation and CSV processing
+# Used in: services/symptom_mappers.py, scripts for dataset analysis
+pandas>=2.0.0
+
+
+# ============================================================================
+# UTILITIES & ENVIRONMENT
+# ============================================================================
+
+# Python-dotenv - Environment variable management
+# Used in: config/settings.py
+python-dotenv>=1.0.0
+
+# TQDM - Progress bars for long-running operations
+# Nice to have for data loading and processing
+tqdm>=4.66.0
+
+
+# ============================================================================
+# TESTING & QUALITY ASSURANCE (Optional - Development Only)
+# ============================================================================
+# Uncomment for development/testing:
+
+# pytest>=7.4.0
+# pytest-asyncio>=0.21.0
+# black>=23.12.0
+# flake8>=7.0.0
+# mypy>=1.8.0
+
+
+# ============================================================================
+# PLATFORM-SPECIFIC DEPENDENCIES
+# ============================================================================
+
+# Python-magic for file type detection (Windows version with DLL)
+# Used for document processing file type validation
+# python-magic-bin>=0.4.14  # Windows only - uncomment if needed
+
+
+# ============================================================================
+# ADDITIONAL NOTES
+# ============================================================================
 #
-# GPU Support (optional):
-#   Install PyTorch with CUDA separately before running this:
-#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# INSTALLATION ORDER:
+# 1. Core dependencies (torch, transformers) should install first
+# 2. Heavy ML packages (sentence-transformers) next
+# 3. LangChain ecosystem together
+# 4. Finally utilities and document processing
 #
-# Memory Requirements:
-#   - Minimum: 8GB RAM
-#   - Recommended: 16GB+ RAM
+# WINDOWS-SPECIFIC CONSIDERATIONS:
+# - psycopg2-binary includes Windows binaries
+# - torch should auto-detect Windows and install CPU version
+# - For GPU support, install torch separately with CUDA
+# - easyocr may require Visual C++ Redistributables
+#
+# KNOWN COMPATIBILITY:
+# - All packages tested on Python 3.12.x
+# - Windows 11 compatible
+# - Some packages may trigger security warnings (normal for ML libraries)
+#
+# MEMORY REQUIREMENTS:
+# - Minimum 8GB RAM recommended
+# - 16GB+ for optimal performance with large models
+# - sentence-transformers loads ~400MB model
+# - Gemini API calls are external (no local model loading)
+#
+# OPTIONAL OPTIMIZATIONS:
+# - For faster numpy operations: install with MKL
+# - For GPU acceleration: install torch with CUDA support
+# - For production: consider freezing exact versions
+#
 # ============================================================================
