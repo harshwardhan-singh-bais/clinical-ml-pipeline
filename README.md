@@ -1,47 +1,13 @@
 # Clinical ML Pipeline
 
 **Production-grade RAG system for clinical note analysis and differential diagnosis generation**
-
----
-
-## 🎯 What This System Does
-
-Transform unstructured clinical notes into:
-1. **Concise clinical summaries** with key findings
-2. **Prioritized differential diagnoses** with evidence justifications
-3. **Traceable reasoning** backed by medical datasets
-
-**Example**:
-
-
-    {
-      "diagnosis": "Esophagitis",
-      "priority": 2,
-      "confidence": "POSSIBLE (50/100)",
-      ...
-    }
-  ]
-}
-```
-
----
-
-## 📚 Documentation
-
-### **Core Documentation**
-- **[Symptom Matching Guide](SYMPTOM_MATCHING.md)** - Complete explanation of how the system finds and matches symptoms (5-stage pipeline)
-- **[Diagnosis Generation Flow](DIAGNOSIS_GENERATION_FLOW.md)** ⭐ - How CSV, DDXPlus, and MedCaseReasoning work together to generate diagnoses
-- **[Quick Reference](SYMPTOM_MATCHING_QUICK_REF.md)** - Cheat sheet with examples and debugging tips
-- **[Deployment Guide](DEPLOYMENT.md)** - How to deploy to Railway.io with compressed CSV dataset
-- **[Documentation Index](DOCS_INDEX.md)** - Navigation guide for all documentation
-
-### **Quick Links**
-## 🚀 Quickstart
+## 🚀 Installation & Quickstart
 
 
 Server starts at: `http://localhost:8000`
 
 Interactive docs: `http://localhost:8000/docs`
+
 
 ### **Test with Example Note**
 
@@ -51,11 +17,13 @@ python scripts\test_clinical_guidelines.py
 
 ### **API Request Example**
 
+
 ```python
 import requests
 
 response = requests.post(
     "http://localhost:8000/api/analyze",
+
     json={
         "input_type": "text",
         "content": """62M with burning substernal chest pain after meals. 
