@@ -8,7 +8,7 @@
 
 ### 1. Clone the Repository
 ```bash
-git clone <your-repo-url>
+git clone (https://github.com/harshwardhan-singh-bais/clinical-ml-pipeline.git)
 cd clinical-ml-pipeline
 ```
 
